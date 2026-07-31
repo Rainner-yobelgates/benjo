@@ -5,10 +5,13 @@ namespace App\Filament\Auth;
 use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Component;
+use Filament\Support\Enums\Width;
 use SensitiveParameter;
 
 class Login extends BaseLogin
 {
+    protected Width | string | null $maxWidth = Width::Medium;
+
     protected function getEmailFormComponent(): Component
     {
         return TextInput::make('name')
