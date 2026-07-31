@@ -21,10 +21,6 @@ return new class extends Migration
                 $table->dropColumn('email_verified_at');
             }
 
-            if (Schema::hasColumn('users', 'remember_token')) {
-                $table->dropColumn('remember_token');
-            }
-
             if (Schema::hasColumn('users', 'email')) {
                 $table->dropColumn('email');
             }
