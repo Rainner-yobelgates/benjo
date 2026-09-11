@@ -8,7 +8,9 @@ use App\Filament\Widgets\MonthlyTransactionsChart;
 use App\Filament\Widgets\TransactionStatsOverview;
 use App\Models\Cashout;
 use App\Models\Transaction;
+use App\Support\Access;
 use Carbon\Carbon;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
@@ -21,6 +23,13 @@ class Dashboard extends BaseDashboard
     use HasFiltersForm;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-home';
+
+    public static function canAccess(): bool
+    {
+        $user = Filament::auth()->user();
+
+        return filled($user) && $user->can(Access::DASHBOARD_VIEW);
+    }
 
     public function filtersForm(Schema $schema): Schema
     {
