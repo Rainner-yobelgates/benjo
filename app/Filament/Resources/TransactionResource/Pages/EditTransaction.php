@@ -12,8 +12,29 @@ class EditTransaction extends EditRecord
 {
     protected static string $resource = TransactionResource::class;
 
+    /**
+     * Layanan daftar harga yang dipilih di form (lihat CreateTransaction).
+     *
+     * @var  array<int, int>
+     */
+    protected array $priceListPicks = [];
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
+    {
+        $this->priceListPicks = TransactionResource::extractPriceListPicks($data);
+        unset($data['price_list_picks']);
+
+        return $data;
+    }
+
     protected function afterSave(): void
     {
+        TransactionResource::syncPriceListServices($this->record, $this->priceListPicks);
+
         $this->record->refresh();
         $this->record->recalculateTotals();
     }

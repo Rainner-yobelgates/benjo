@@ -36,12 +36,19 @@ class Transaction extends Model
         });
 
         static::saving(function (Transaction $transaction): void {
+            // Barang (tanpa price_list_id) adalah pengeluaran/modal, layanan
+            // daftar harga (dengan price_list_id) adalah pemasukan selain
+            // biaya servis.
             $itemCost = $transaction->exists
-                ? (float) $transaction->transactionItems()->sum('subtotal')
+                ? (float) $transaction->transactionItems()->whereNull('price_list_id')->sum('subtotal')
                 : (float) ($transaction->total_item_cost ?? 0);
 
+            $serviceIncome = $transaction->exists
+                ? (float) $transaction->transactionItems()->whereNotNull('price_list_id')->sum('subtotal')
+                : 0.0;
+
             $transaction->total_item_cost = $itemCost;
-            $transaction->total_income = (float) ($transaction->service_fee ?? 0);
+            $transaction->total_income = (float) ($transaction->service_fee ?? 0) + $serviceIncome;
             $transaction->gross_profit = $transaction->total_income - $transaction->total_item_cost;
         });
     }
@@ -53,8 +60,11 @@ class Transaction extends Model
 
     public function recalculateTotals(): void
     {
-        $this->total_item_cost = (float) $this->transactionItems()->sum('subtotal');
-        $this->total_income = (float) ($this->service_fee ?? 0);
+        $items = $this->transactionItems();
+
+        $this->total_item_cost = (float) (clone $items)->whereNull('price_list_id')->sum('subtotal');
+        $this->total_income = (float) ($this->service_fee ?? 0)
+            + (float) (clone $items)->whereNotNull('price_list_id')->sum('subtotal');
         $this->gross_profit = $this->total_income - $this->total_item_cost;
         $this->saveQuietly();
     }

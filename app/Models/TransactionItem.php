@@ -9,6 +9,7 @@ class TransactionItem extends Model
 {
     protected $fillable = [
         'item_id',
+        'price_list_id',
         'item_name',
         'item_price',
         'quantity',
@@ -33,6 +34,13 @@ class TransactionItem extends Model
                 $transactionItem->item_price = $transactionItem->item_price ?: ($item?->price ?? 0);
             }
 
+            if ($transactionItem->price_list_id && blank($transactionItem->item_name)) {
+                $priceList = PriceList::query()->find($transactionItem->price_list_id);
+
+                $transactionItem->item_name = $priceList?->name ?? $transactionItem->item_name;
+                $transactionItem->item_price = $transactionItem->item_price ?: ($priceList?->price ?? 0);
+            }
+
             $transactionItem->quantity = max(1, (int) ($transactionItem->quantity ?: 1));
             $transactionItem->subtotal = (float) $transactionItem->item_price * $transactionItem->quantity;
         });
@@ -49,5 +57,10 @@ class TransactionItem extends Model
     public function item(): BelongsTo
     {
         return $this->belongsTo(Item::class);
+    }
+
+    public function priceList(): BelongsTo
+    {
+        return $this->belongsTo(PriceList::class);
     }
 }

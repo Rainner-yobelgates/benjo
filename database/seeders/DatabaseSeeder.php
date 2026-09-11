@@ -20,15 +20,20 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // The registrar caches the whole permission table (24h) and serves
+        // stale data during this seed (on a fresh database the first lookup
+        // caches an empty permission list), so flush it before and after.
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $permissions = Access::all();
+        // firstOrCreate is plain Eloquent and does not touch the registrar
+        // cache, so the records are guaranteed to exist afterwards.
+        collect(Access::all())
+            ->map(fn (string $name) => Permission::firstOrCreate([
+                'name' => $name,
+                'guard_name' => 'web',
+            ]));
 
-        foreach ($permissions as $permission) {
-            Permission::findOrCreate($permission);
-        }
-
-        static::syncRolePermissions(Access::MASTER_ROLE, $permissions);
+        static::syncRolePermissions(Access::MASTER_ROLE, Access::all());
 
         static::syncRolePermissions('admin', [
             Access::DASHBOARD_VIEW,
@@ -42,6 +47,11 @@ class DatabaseSeeder extends Seeder
             Access::ITEMS_VIEW,
             Access::ITEMS_CREATE,
             Access::ITEMS_UPDATE,
+
+            Access::PRICE_LISTS_VIEW_ANY,
+            Access::PRICE_LISTS_VIEW,
+            Access::PRICE_LISTS_CREATE,
+            Access::PRICE_LISTS_UPDATE,
 
             Access::CASHOUTS_VIEW_ANY,
             Access::CASHOUTS_VIEW,
@@ -65,16 +75,35 @@ class DatabaseSeeder extends Seeder
             'password' => Hash::make('benjogarage2018'),
         ]);
 
-        $user->syncRoles([Access::MASTER_ROLE]);
+        $user->syncRoles([Role::firstOrCreate([
+            'name' => Access::MASTER_ROLE,
+            'guard_name' => 'web',
+        ])]);
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 
     /**
-     * @param  array<int, string>  $permissions
+     * Sync a role's permissions using MODEL INSTANCES. Passing models (not
+     * name strings) keeps syncPermissions away from findByName and therefore
+     * immune to any stale registrar cache state.
+     *
+     * @param  array<int, string>  $permissionNames
      */
-    protected static function syncRolePermissions(string $roleName, array $permissions): void
+    protected static function syncRolePermissions(string $roleName, array $permissionNames): void
     {
-        $role = Role::findOrCreate($roleName);
+        $role = Role::firstOrCreate([
+            'name' => $roleName,
+            'guard_name' => 'web',
+        ]);
 
-        $role->syncPermissions($permissions);
+        $permissions = collect($permissionNames)
+            ->map(fn (string $name) => Permission::firstOrCreate([
+                'name' => $name,
+                'guard_name' => 'web',
+            ]))
+            ->values();
+
+        $role->syncPermissions($permissions->all());
     }
 }

@@ -7,6 +7,9 @@
     if (filled($setting?->logo)) {
         $logoUrl = Storage::disk('public')->url($setting->logo);
     }
+
+    $barangItems = $transaction->transactionItems->whereNull('price_list_id')->values();
+    $layananItems = $transaction->transactionItems->whereNotNull('price_list_id')->values();
 @endphp
 <!DOCTYPE html>
 <html lang="id">
@@ -218,7 +221,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @forelse ($transaction->transactionItems as $item)
+                        @forelse ($barangItems as $item)
                             <tr>
                                 <td>{{ $item->item_name }}</td>
                                 <td>{{ $item->quantity }}</td>
@@ -232,14 +235,42 @@
                 </table>
             </div>
 
+            @if ($layananItems->isNotEmpty())
+                <div class="card">
+                    <h2>Layanan Servis (Daftar Harga)</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Layanan</th>
+                                <th>Qty</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($layananItems as $layanan)
+                                <tr>
+                                    <td>{{ $layanan->item_name }}</td>
+                                    <td>{{ $layanan->quantity }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @endif
+
             <div class="summary">
+                @if ($layananItems->isNotEmpty())
+                    <div class="summary-row">
+                        <span>Total Layanan Daftar Harga</span>
+                        <span>{{ Money::rupiah($layananItems->sum('subtotal')) }}</span>
+                    </div>
+                @endif
                 <div class="summary-row">
                     <span>Biaya Servis</span>
                     <span>{{ Money::rupiah($transaction->service_fee) }}</span>
                 </div>
                 <div class="summary-row total">
                     <span>Total Pembayaran Customer</span>
-                    <span>{{ Money::rupiah($transaction->service_fee) }}</span>
+                    <span>{{ Money::rupiah($transaction->total_income) }}</span>
                 </div>
             </div>
 

@@ -4,7 +4,10 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Models\Item;
+use App\Models\PriceList;
 use App\Models\Transaction;
+use App\Models\TransactionItem;
+use Illuminate\Database\Eloquent\Builder;
 use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -76,7 +79,7 @@ class TransactionResource extends Resource
                     ->schema([
                         Repeater::make('transactionItems')
                             ->label('Daftar Barang')
-                            ->relationship()
+                            ->relationship(modifyQueryUsing: fn (Builder $query): Builder => $query->whereNull('price_list_id'))
                             ->defaultItems(1)
                             ->minItems(1)
                             ->addActionLabel('Tambah Barang')
@@ -147,8 +150,36 @@ class TransactionResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->columnSpanFull(),
+                Section::make('Layanan Servis (Daftar Harga)')
+                    ->description('Pilih layanan dari master Daftar Harga. Harganya masuk ke perhitungan dan bisa digabung dengan Biaya Servis, atau dipakai tanpa Biaya Servis.')
+                    ->icon('heroicon-o-banknotes')
+                    ->schema([
+                        Select::make('price_list_picks')
+                            ->label('Layanan Terpilih')
+                            ->placeholder('Cari dan pilih layanan dari daftar harga')
+                            ->native(false)
+                            ->multiple()
+                            ->options(fn (): array => static::getPriceListOptions())
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateHydrated(function (Select $component, ?Transaction $record): void {
+                                $component->state(
+                                    $record?->transactionItems()
+                                        ->whereNotNull('price_list_id')
+                                        ->pluck('price_list_id')
+                                        ->all() ?? [],
+                                );
+                            })
+                            ->columnSpanFull(),
+                        Placeholder::make('price_list_income_preview')
+                            ->label('Total Layanan Terpilih')
+                            ->content(fn (Get $get): string => Money::rupiah(static::sumPickedPriceListIncome($get('price_list_picks')))),
+                    ])
+                    ->columns(2)
+                    ->columnSpanFull(),
                 Section::make('Biaya & Ringkasan')
-                    ->description('Biaya servis adalah pemasukan dari customer. Pengeluaran barang dihitung dari seluruh barang di atas.')
+                    ->description('Total pemasukan = Biaya Servis + layanan daftar harga. Pengeluaran barang dihitung dari seluruh barang di atas.')
                     ->icon('heroicon-o-calculator')
                     ->schema([
                         TextInput::make('service_fee')
@@ -163,10 +194,17 @@ class TransactionResource extends Resource
                         Placeholder::make('total_item_cost_preview')
                             ->label('Total Pengeluaran Barang')
                             ->content(fn (Get $get): string => Money::rupiah(static::sumTransactionItemSubtotals($get('transactionItems')))),
+                        Placeholder::make('total_income_preview')
+                            ->label('Total Pemasukan (Biaya Servis + Layanan)')
+                            ->content(fn (Get $get): string => Money::rupiah(
+                                (float) ($get('service_fee') ?: 0) + static::sumPickedPriceListIncome($get('price_list_picks')),
+                            )),
                         Placeholder::make('gross_profit_preview')
                             ->label('Estimasi Profit Transaksi')
                             ->content(fn (Get $get): string => Money::rupiah(
-                                (float) ($get('service_fee') ?: 0) - static::sumTransactionItemSubtotals($get('transactionItems')),
+                                (float) ($get('service_fee') ?: 0)
+                                    + static::sumPickedPriceListIncome($get('price_list_picks'))
+                                    - static::sumTransactionItemSubtotals($get('transactionItems')),
                             )),
                     ])
                     ->columns(3)
@@ -200,6 +238,9 @@ class TransactionResource extends Resource
                         TextEntry::make('service_fee')
                             ->label('Biaya Servis')
                             ->money('IDR', locale: 'id', decimalPlaces: 0),
+                        TextEntry::make('total_income')
+                            ->label('Total Pemasukan (Biaya Servis + Layanan)')
+                            ->money('IDR', locale: 'id', decimalPlaces: 0),
                         TextEntry::make('total_item_cost')
                             ->label('Total Modal Barang')
                             ->money('IDR', locale: 'id', decimalPlaces: 0),
@@ -208,6 +249,19 @@ class TransactionResource extends Resource
                             ->money('IDR', locale: 'id', decimalPlaces: 0),
                     ])
                     ->columns(2),
+                Section::make('Layanan Servis (Daftar Harga)')
+                    ->schema([
+                        TextEntry::make('price_list_services')
+                            ->label('')
+                            ->listWithLineBreaks()
+                            ->state(fn (Transaction $record): array => $record->transactionItems
+                                ->whereNotNull('price_list_id')
+                                ->map(fn (TransactionItem $item): string => "{$item->item_name} x{$item->quantity} — " . Money::rupiah($item->subtotal))
+                                ->values()
+                                ->all())
+                            ->placeholder('Tidak ada layanan daftar harga.'),
+                    ])
+                    ->columnSpanFull(),
                 Section::make('Barang Digunakan')
                     ->schema([
                         RepeatableEntry::make('transactionItems')
@@ -256,6 +310,10 @@ class TransactionResource extends Resource
                     ->placeholder('-'),
                 TextColumn::make('service_fee')
                     ->label('Biaya Servis')
+                    ->money('IDR', locale: 'id', decimalPlaces: 0)
+                    ->sortable(),
+                TextColumn::make('total_income')
+                    ->label('Total Pemasukan')
                     ->money('IDR', locale: 'id', decimalPlaces: 0)
                     ->sortable(),
                 TextColumn::make('total_item_cost')
@@ -365,5 +423,97 @@ class TransactionResource extends Resource
             : '';
 
         return "{$item->name} ({$priceLabel}){$description}";
+    }
+
+    /**
+     * Pilihan layanan daftar harga mentah dari form, dinormalisasi menjadi
+     * daftar id unik.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
+     */
+    public static function extractPriceListPicks(array $data): array
+    {
+        return array_values(array_unique(array_map(
+            intval(...),
+            array_filter((array) ($data['price_list_picks'] ?? [])),
+        )));
+    }
+
+    protected static function sumPickedPriceListIncome(mixed $picks): float
+    {
+        return (float) PriceList::query()
+            ->whereIn('id', array_filter((array) ($picks ?? [])))
+            ->sum('price');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function getPriceListOptions(): array
+    {
+        return PriceList::query()
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(fn (PriceList $priceList): array => [$priceList->id => static::formatPriceListOptionLabel($priceList)])
+            ->all();
+    }
+
+    protected static function formatPriceListOptionLabel(PriceList $priceList): string
+    {
+        $priceLabel = Money::rupiah($priceList->price ?? 0);
+        $description = filled($priceList->description)
+            ? ' - ' . str($priceList->description)->limit(40)->toString()
+            : '';
+
+        return "{$priceList->name} ({$priceLabel}){$description}";
+    }
+
+    /**
+     * Sinkronkan baris layanan daftar harga (transaction_items yang punya
+     * price_list_id) pada sebuah transaksi dengan pilihan layanan di form.
+     * Baris barang (price_list_id kosong) tidak pernah disentuh di sini.
+     *
+     * @param  array<int, int>  $picks
+     */
+    public static function syncPriceListServices(Transaction $record, array $picks): void
+    {
+        $picks = static::extractPriceListPicks(['price_list_picks' => $picks]);
+
+        $existingLayanan = $record->transactionItems()
+            ->whereNotNull('price_list_id')
+            ->pluck('price_list_id')
+            ->map(fn ($id): int => (int) $id);
+
+        $record->transactionItems()
+            ->whereNotNull('price_list_id')
+            ->whereNotIn('price_list_id', $picks)
+            ->delete();
+
+        $kept = $existingLayanan->intersect($picks);
+
+        foreach ($picks as $priceListId) {
+            if ($kept->contains((int) $priceListId)) {
+                continue;
+            }
+
+            $priceList = PriceList::query()->find($priceListId);
+
+            if ($priceList === null) {
+                continue;
+            }
+
+            $record->transactionItems()->create([
+                'price_list_id' => $priceList->id,
+                'item_name' => $priceList->name,
+                'item_price' => $priceList->price,
+                'quantity' => 1,
+            ]);
+        }
+
+        // Penghapusan massal di atas tidak memicu model events (recalculateTotals),
+        // jadi hitung ulang totals secara eksplisit di akhir sinkronisasi.
+        $record->refresh();
+        $record->recalculateTotals();
     }
 }

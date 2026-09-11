@@ -31,6 +31,13 @@ class Access
     public const ITEMS_DELETE = 'items.delete';
     public const ITEMS_DELETE_ANY = 'items.delete_any';
 
+    public const PRICE_LISTS_VIEW_ANY = 'price_lists.view_any';
+    public const PRICE_LISTS_VIEW = 'price_lists.view';
+    public const PRICE_LISTS_CREATE = 'price_lists.create';
+    public const PRICE_LISTS_UPDATE = 'price_lists.update';
+    public const PRICE_LISTS_DELETE = 'price_lists.delete';
+    public const PRICE_LISTS_DELETE_ANY = 'price_lists.delete_any';
+
     public const CASHOUTS_VIEW_ANY = 'cashouts.view_any';
     public const CASHOUTS_VIEW = 'cashouts.view';
     public const CASHOUTS_CREATE = 'cashouts.create';
@@ -81,6 +88,13 @@ class Access
             Access::ITEMS_UPDATE,
             Access::ITEMS_DELETE,
             Access::ITEMS_DELETE_ANY,
+
+            Access::PRICE_LISTS_VIEW_ANY,
+            Access::PRICE_LISTS_VIEW,
+            Access::PRICE_LISTS_CREATE,
+            Access::PRICE_LISTS_UPDATE,
+            Access::PRICE_LISTS_DELETE,
+            Access::PRICE_LISTS_DELETE_ANY,
 
             Access::CASHOUTS_VIEW_ANY,
             Access::CASHOUTS_VIEW,
