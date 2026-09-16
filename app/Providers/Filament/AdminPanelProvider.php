@@ -48,6 +48,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogoHeight('2.5rem')
             ->maxContentWidth('fi-width-none')
             ->simplePageMaxContentWidth(Width::Large)
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->colors([
                 'primary' => Color::Amber,
             ])

@@ -21,7 +21,7 @@ class CashoutResource extends Resource
 {
     protected static ?string $model = Cashout::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-banknotes';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrow-trending-down';
 
     protected static ?string $navigationLabel = 'Cashout';
 

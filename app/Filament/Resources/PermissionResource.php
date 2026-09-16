@@ -13,15 +13,20 @@ class PermissionResource extends Resource
 {
     protected static ?string $model = Permission::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-key';
+    protected static string|\BackedEnum|null $navigationIcon = null;
 
-    protected static ?string $navigationLabel = 'Permission';
+    protected static ?string $navigationLabel = null;
 
     protected static ?string $modelLabel = 'Permission';
 
     protected static ?string $pluralModelLabel = 'Permission';
 
-    protected static ?int $navigationSort = 8;
+    protected static ?int $navigationSort = null;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function table(Table $table): Table
     {

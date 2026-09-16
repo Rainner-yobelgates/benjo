@@ -21,6 +21,7 @@ class Access
     public const TRANSACTIONS_VIEW = 'transactions.view';
     public const TRANSACTIONS_CREATE = 'transactions.create';
     public const TRANSACTIONS_UPDATE = 'transactions.update';
+    public const TRANSACTIONS_UNLOCK = 'transactions.unlock';
     public const TRANSACTIONS_DELETE = 'transactions.delete';
     public const TRANSACTIONS_DELETE_ANY = 'transactions.delete_any';
 
@@ -60,9 +61,90 @@ class Access
     public const ROLES_CREATE = 'roles.create';
     public const ROLES_UPDATE = 'roles.update';
     public const ROLES_DELETE = 'roles.delete';
-    public const ROLES_DELETE_ANY = 'roles.delete_any';
 
     public const PERMISSIONS_VIEW_ANY = 'permissions.view_any';
+
+    /**
+     * Human-readable action labels for the permission matrix UI.
+     *
+     * @var array<string, string>
+     */
+    private const ACTION_LABELS = [
+        'view' => 'Lihat',
+        'view_any' => 'Lihat Semua',
+        'create' => 'Tambah',
+        'update' => 'Ubah',
+        'unlock' => 'Buka Kunci',
+        'delete' => 'Hapus',
+        'delete_any' => 'Hapus Semua',
+        'restore' => 'Pulihkan',
+        'restore_any' => 'Pulihkan Semua',
+        'force_delete' => 'Hapus Permanen',
+        'force_delete_any' => 'Hapus Permanen Semua',
+        'approve' => 'Approval',
+        'print' => 'Print',
+        'export' => 'Export',
+        'import' => 'Import',
+        'adjust' => 'Adjustment',
+    ];
+
+    /**
+     * Human-readable module labels for the permission matrix UI.
+     *
+     * @var array<string, string>
+     */
+    private const MODULE_LABELS = [
+        'dashboard' => 'Dashboard',
+        'transactions' => 'Transaksi',
+        'items' => 'Barang',
+        'price_lists' => 'Daftar Harga',
+        'cashouts' => 'Cashout',
+        'users' => 'Pengguna',
+        'roles' => 'Role Management',
+        'permissions' => 'Izin',
+        'settings' => 'Pengaturan',
+    ];
+
+    /**
+     * Module display precedence — lower numbers first, unknown modules last.
+     *
+     * @var array<string, int>
+     */
+    private const MODULE_ORDER = [
+        'dashboard' => 1,
+        'transactions' => 2,
+        'items' => 3,
+        'price_lists' => 4,
+        'cashouts' => 5,
+        'users' => 6,
+        'roles' => 7,
+        'permissions' => 8,
+        'settings' => 9,
+    ];
+
+    /**
+     * Action sort order within a module — lower numbers first.
+     *
+     * @var array<string, int>
+     */
+    private const ACTION_ORDER = [
+        'view' => 10,
+        'view_any' => 20,
+        'create' => 30,
+        'update' => 40,
+        'unlock' => 45,
+        'approve' => 50,
+        'delete' => 60,
+        'delete_any' => 70,
+        'restore' => 80,
+        'restore_any' => 90,
+        'force_delete' => 100,
+        'force_delete_any' => 110,
+        'import' => 120,
+        'export' => 130,
+        'print' => 140,
+        'adjust' => 150,
+    ];
 
     /**
      * The complete list of permissions, used by the seeder to create the
@@ -79,6 +161,7 @@ class Access
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
             Access::TRANSACTIONS_UPDATE,
+            Access::TRANSACTIONS_UNLOCK,
             Access::TRANSACTIONS_DELETE,
             Access::TRANSACTIONS_DELETE_ANY,
 
@@ -118,9 +201,101 @@ class Access
             Access::ROLES_CREATE,
             Access::ROLES_UPDATE,
             Access::ROLES_DELETE,
-            Access::ROLES_DELETE_ANY,
 
             Access::PERMISSIONS_VIEW_ANY,
         ];
+    }
+
+    /**
+     * Group all known permissions by module prefix, with human-readable labels.
+     *
+     * Group structure:
+     *   module_key => [
+     *       'label'   => 'Transaksi',
+     *       'key'     => 'transactions',
+     *       'actions' => [
+     *           'view'    => 'Lihat',
+     *           'create'  => 'Tambah',
+     *       ],
+     *   ]
+     *
+     * Modules and actions inside each module are sorted by a predefined
+     * precedence so the matrix always renders in a stable, predictable order.
+     *
+     * @return array<string, array{label: string, key: string, actions: array<string, string>}>
+     */
+    public static function allGrouped(): array
+    {
+        $grouped = [];
+
+        foreach (self::all() as $permission) {
+            if (! str_contains($permission, '.')) {
+                continue;
+            }
+
+            [$module, $action] = explode('.', $permission, 2);
+
+            $grouped[$module] ??= [
+                'label'   => self::moduleLabel($module),
+                'key'     => $module,
+                'actions' => [],
+            ];
+
+            $grouped[$module]['actions'][$action] = self::actionLabel($action);
+        }
+
+        // Modules: predefined order, then alphabetical for unknowns.
+        uksort($grouped, static function (string $a, string $b): int {
+            $orderA = self::MODULE_ORDER[$a] ?? 9999;
+            $orderB = self::MODULE_ORDER[$b] ?? 9999;
+
+            if ($orderA !== $orderB) {
+                return $orderA <=> $orderB;
+            }
+
+            return strcasecmp($a, $b);
+        });
+
+        // Actions within each module: CRUD-ish order, then alphabetical.
+        foreach ($grouped as $module => &$data) {
+            uksort($data['actions'], static function (string $a, string $b): int {
+                $orderA = self::ACTION_ORDER[$a] ?? 9999;
+                $orderB = self::ACTION_ORDER[$b] ?? 9999;
+
+                if ($orderA !== $orderB) {
+                    return $orderA <=> $orderB;
+                }
+
+                return strcasecmp($a, $b);
+            });
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * Human-readable label for a permission action slug.
+     */
+    public static function actionLabel(string $action): string
+    {
+        return self::ACTION_LABELS[$action]
+            ?? self::autoLabel($action);
+    }
+
+    /**
+     * Human-readable label for a module prefix.
+     */
+    public static function moduleLabel(string $module): string
+    {
+        return self::MODULE_LABELS[$module]
+            ?? self::autoLabel($module);
+    }
+
+    /**
+     * Auto-format a machine name like "stock_adjustment" into "Stock Adjustment".
+     */
+    private static function autoLabel(string $value): string
+    {
+        return ucwords(str_replace(['_', '-'], ' ', $value), ' ');
     }
 }

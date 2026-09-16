@@ -43,6 +43,6 @@ class RolePolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $user->can(Access::ROLES_DELETE_ANY);
+        return $user->can(Access::ROLES_DELETE);
     }
 }

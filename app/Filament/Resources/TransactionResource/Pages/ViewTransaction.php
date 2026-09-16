@@ -15,6 +15,29 @@ class ViewTransaction extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('lock')
+                ->label('Selesaikan & Kunci')
+                ->icon(Heroicon::OutlinedLockClosed)
+                ->color('success')
+                ->authorize('lock')
+                ->visible(fn (): bool => $this->record->isDraft())
+                ->requiresConfirmation()
+                ->modalHeading('Selesaikan dan kunci transaksi?')
+                ->modalDescription('Total dan komisi akan dikunci sebagai histori dan tidak dapat diubah melalui form biasa.')
+                ->action(fn (): mixed => $this->record->lock()),
+            Action::make('unlock')
+                ->label('Buka Kunci')
+                ->icon(Heroicon::OutlinedLockOpen)
+                ->color('warning')
+                ->authorize('unlock')
+                ->visible(fn (): bool => $this->record->isLocked())
+                ->requiresConfirmation()
+                ->modalHeading('Buka kunci transaksi?')
+                ->modalDescription('Transaksi akan kembali menjadi Draft. Komisi akan mengikuti total dan persentase user terbaru.')
+                ->action(function (): void {
+                    $this->record->unlock();
+                    $this->redirect(TransactionResource::getUrl('edit', ['record' => $this->record]));
+                }),
             Action::make('print')
                 ->label('Print PDF')
                 ->icon(Heroicon::OutlinedPrinter)

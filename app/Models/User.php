@@ -9,11 +9,13 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'password'])]
+#[Fillable(['name', 'password', 'commission_percent', 'commission_active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
@@ -37,6 +39,26 @@ class User extends Authenticatable implements FilamentUser
     }
 
     /**
+     * Whether this user currently receives commission on transactions.
+     */
+    public function hasActiveCommission(): bool
+    {
+        return (bool) ($this->commission_active ?? false)
+            && (float) ($this->commission_percent ?? 0) > 0;
+    }
+
+    public function commissions(): HasMany
+    {
+        return $this->hasMany(TransactionCommission::class);
+    }
+
+    public function participatingTransactions(): BelongsToMany
+    {
+        return $this->belongsToMany(Transaction::class, 'transaction_participants')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -45,6 +67,8 @@ class User extends Authenticatable implements FilamentUser
     {
         return [
             'password' => 'hashed',
+            'commission_percent' => 'decimal:2',
+            'commission_active' => 'boolean',
         ];
     }
 }

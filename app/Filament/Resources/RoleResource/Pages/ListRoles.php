@@ -13,7 +13,9 @@ class ListRoles extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+                ->label('Buat Role Baru')
+                ->icon('heroicon-o-user-plus'),
         ];
     }
 }

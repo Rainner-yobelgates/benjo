@@ -7,6 +7,7 @@ use App\Models\Item;
 use App\Models\PriceList;
 use App\Models\Transaction;
 use App\Models\TransactionItem;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use App\Support\Money;
 use Filament\Actions\Action;
@@ -36,9 +37,9 @@ class TransactionResource extends Resource
 {
     protected static ?string $model = Transaction::class;
 
-    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-wrench-screwdriver';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-arrows-right-left';
 
-    protected static ?string $navigationLabel = 'Transaction';
+    protected static ?string $navigationLabel = 'Transaksi';
 
     protected static ?string $modelLabel = 'Transaction';
 
@@ -178,6 +179,33 @@ class TransactionResource extends Resource
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
+                Section::make('User Terlibat & Komisi')
+                    ->description('Hanya user yang dipilih di sini yang menerima komisi. Komisi dihitung dari Nilai Tagihan Bruto, bukan profit transaksi.')
+                    ->icon('heroicon-o-users')
+                    ->schema([
+                        Select::make('participant_ids')
+                            ->label('User Terlibat')
+                            ->placeholder('Pilih user yang terlibat dalam transaksi')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->options(fn (?Transaction $record): array => static::getParticipantOptions($record))
+                            ->afterStateHydrated(function (Select $component, ?Transaction $record): void {
+                                $component->state($record?->participants()->pluck('users.id')->all() ?? []);
+                            })
+                            ->live()
+                            ->helperText('User baru yang dapat dipilih harus memiliki komisi aktif dan persentase di atas 0%.')
+                            ->columnSpanFull(),
+                        Placeholder::make('commission_preview')
+                            ->label('Estimasi Komisi Peserta')
+                            ->content(fn (Get $get): string => static::commissionPreview(
+                                $get('participant_ids'),
+                                (float) ($get('service_fee') ?: 0) + static::sumPickedPriceListIncome($get('price_list_picks')),
+                            ))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1)
+                    ->columnSpanFull(),
                 Section::make('Biaya & Ringkasan')
                     ->description('Total pemasukan = Biaya Servis + layanan daftar harga. Pengeluaran barang dihitung dari seluruh barang di atas.')
                     ->icon('heroicon-o-calculator')
@@ -223,6 +251,11 @@ class TransactionResource extends Resource
                         TextEntry::make('transaction_date')
                             ->label('Tanggal')
                             ->date('d M Y'),
+                        TextEntry::make('status')
+                            ->label('Status')
+                            ->badge()
+                            ->formatStateUsing(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'Terkunci' : 'Draft')
+                            ->color(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'success' : 'warning'),
                         TextEntry::make('customer_name')
                             ->label('Nama Customer'),
                         TextEntry::make('customer_phone')
@@ -300,6 +333,12 @@ class TransactionResource extends Resource
                     ->label('Tanggal')
                     ->date('d M Y')
                     ->sortable(),
+                TextColumn::make('status')
+                    ->label('Status')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'Terkunci' : 'Draft')
+                    ->color(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'success' : 'warning')
+                    ->sortable(),
                 TextColumn::make('customer_name')
                     ->label('Customer')
                     ->searchable()
@@ -336,6 +375,26 @@ class TransactionResource extends Resource
                     ->icon('heroicon-o-printer')
                     ->url(fn (Transaction $record): string => route('transactions.print', $record))
                     ->openUrlInNewTab(),
+                Action::make('lock')
+                    ->label('Selesaikan & Kunci')
+                    ->icon('heroicon-o-lock-closed')
+                    ->color('success')
+                    ->authorize('lock')
+                    ->visible(fn (Transaction $record): bool => $record->isDraft())
+                    ->requiresConfirmation()
+                    ->modalHeading('Selesaikan dan kunci transaksi?')
+                    ->modalDescription('Total dan komisi akan dikunci sebagai histori dan tidak dapat diubah melalui form biasa.')
+                    ->action(fn (Transaction $record) => $record->lock()),
+                Action::make('unlock')
+                    ->label('Buka Kunci')
+                    ->icon('heroicon-o-lock-open')
+                    ->color('warning')
+                    ->authorize('unlock')
+                    ->visible(fn (Transaction $record): bool => $record->isLocked())
+                    ->requiresConfirmation()
+                    ->modalHeading('Buka kunci transaksi?')
+                    ->modalDescription('Transaksi akan kembali menjadi Draft. Komisi akan mengikuti total dan persentase user terbaru.')
+                    ->action(fn (Transaction $record) => $record->unlock()),
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),
@@ -438,6 +497,71 @@ class TransactionResource extends Resource
             intval(...),
             array_filter((array) ($data['price_list_picks'] ?? [])),
         )));
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return array<int, int>
+     */
+    public static function extractParticipantIds(array $data): array
+    {
+        return array_values(array_unique(array_map(
+            intval(...),
+            array_filter((array) ($data['participant_ids'] ?? [])),
+        )));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    protected static function getParticipantOptions(?Transaction $record): array
+    {
+        $existingIds = $record?->participants()->pluck('users.id')->all() ?? [];
+
+        return User::query()
+            ->where(function (Builder $query) use ($existingIds): void {
+                $query->where(function (Builder $query): void {
+                    $query->where('commission_active', true)
+                        ->where('commission_percent', '>', 0);
+                })->orWhereIn('id', $existingIds);
+            })
+            ->orderBy('name')
+            ->get()
+            ->mapWithKeys(function (User $user): array {
+                $status = $user->hasActiveCommission() ? '' : ' — riwayat (nonaktif)';
+
+                return [$user->id => "{$user->name} ({$user->commission_percent}%){$status}"];
+            })
+            ->all();
+    }
+
+    protected static function commissionPreview(mixed $participantIds, float $grossAmount): string
+    {
+        $participants = User::query()
+            ->whereIn('id', array_filter((array) ($participantIds ?? [])))
+            ->where('commission_active', true)
+            ->where('commission_percent', '>', 0)
+            ->get();
+
+        if ($participants->isEmpty()) {
+            return filled($participantIds)
+                ? 'Tidak ada peserta aktif baru. Peserta riwayat yang nonaktif tetap menyimpan snapshot komisi sebelumnya.'
+                : 'Belum ada user yang dipilih. Tidak ada komisi yang akan dibuat.';
+        }
+
+        $details = $participants->map(fn (User $user): string => sprintf(
+            '%s %s%% = %s',
+            $user->name,
+            $user->commission_percent,
+            Money::rupiah(round($grossAmount * (float) $user->commission_percent / 100, 2)),
+        ));
+        $total = (float) $participants->sum(
+            fn (User $user): float => round($grossAmount * (float) $user->commission_percent / 100, 2),
+        );
+
+        return 'Nilai Tagihan Bruto ' . Money::rupiah($grossAmount)
+            . ' — ' . $details->implode(', ')
+            . '. Total komisi peserta: ' . Money::rupiah($total) . '.';
     }
 
     protected static function sumPickedPriceListIncome(mixed $picks): float

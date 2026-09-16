@@ -25,12 +25,26 @@ class TransactionPolicy extends BasePolicy
 
     public function update(User $user, Transaction $transaction): bool
     {
-        return $this->can($user, Access::TRANSACTIONS_UPDATE);
+        return $transaction->isDraft()
+            && $this->can($user, Access::TRANSACTIONS_UPDATE);
+    }
+
+    public function lock(User $user, Transaction $transaction): bool
+    {
+        return $transaction->isDraft()
+            && $this->can($user, Access::TRANSACTIONS_UPDATE);
+    }
+
+    public function unlock(User $user, Transaction $transaction): bool
+    {
+        return $transaction->isLocked()
+            && $this->can($user, Access::TRANSACTIONS_UNLOCK);
     }
 
     public function delete(User $user, Transaction $transaction): bool
     {
-        return $this->can($user, Access::TRANSACTIONS_DELETE);
+        return $transaction->isDraft()
+            && $this->can($user, Access::TRANSACTIONS_DELETE);
     }
 
     public function deleteAny(User $user): bool
