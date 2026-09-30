@@ -42,7 +42,8 @@ class DatabaseSeeder extends Seeder
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
             Access::TRANSACTIONS_UPDATE,
-            Access::TRANSACTIONS_UNLOCK,
+            Access::TRANSACTIONS_VIEW_FINANCIAL,
+            Access::TRANSACTIONS_LOCK,
 
             Access::ITEMS_VIEW_ANY,
             Access::ITEMS_VIEW,

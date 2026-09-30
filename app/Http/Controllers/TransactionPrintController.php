@@ -19,6 +19,7 @@ class TransactionPrintController extends Controller
         return view('transactions.print', [
             'transaction' => $transaction,
             'setting' => Setting::current(),
+            'canViewFinancial' => Gate::forUser(Auth::user())->allows('viewFinancial', [$transaction]),
         ]);
     }
 }

@@ -6,13 +6,13 @@ use App\Filament\Resources\RoleResource\Pages;
 use App\Support\Access;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\ViewField;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -32,7 +32,7 @@ class RoleResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Role';
 
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 91;
 
     public static function canDelete(Model $record): bool
     {
@@ -81,7 +81,7 @@ class RoleResource extends Resource
 
             $schema[] = Section::make($module['label'])
                 ->description(fn (Get $get): string => self::moduleSummaryDescription(
-                    self::activePermissionCount($get, $moduleKey, $actions),
+                    self::activePermissionCount($get, $moduleKey, $actions, $record),
                     $totalCount,
                 ))
                 ->schema([
@@ -137,9 +137,9 @@ class RoleResource extends Resource
             Section::make('Role Master')
                 ->description('Role Master secara otomatis memiliki seluruh permission. Permission untuk role ini tidak dapat diubah.')
                 ->schema([
-                    ViewField::make('permissions')
-                        ->view('filament::components.information-banner')
-                        ->label(false),
+                    Placeholder::make('permissions')
+                        ->label('Akses Master')
+                        ->content('Role master selalu memiliki seluruh permission dan tidak dapat diubah atau dihapus.'),
                 ])
                 ->columns(1),
         ];
@@ -200,11 +200,17 @@ class RoleResource extends Resource
     /**
      * @param  array<int, string>  $actions
      */
-    private static function activePermissionCount(Get $get, string $moduleKey, array $actions): int
+    private static function activePermissionCount(Get $get, string $moduleKey, array $actions, ?Role $record = null): int
     {
         return count(array_filter(
             $actions,
-            fn (string $action): bool => (bool) $get("permission_matrix.{$moduleKey}.{$action}", isAbsolute: true),
+            function (string $action) use ($get, $moduleKey, $record): bool {
+                $state = $get("permission_matrix.{$moduleKey}.{$action}", isAbsolute: true);
+
+                return $state === null
+                    ? self::roleHasPermission($record, "{$moduleKey}.{$action}")
+                    : (bool) $state;
+            },
         ));
     }
 
@@ -259,8 +265,8 @@ class RoleResource extends Resource
             ])
             ->defaultSort('name', 'asc')
             ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()->iconButton()->tooltip('Ubah'),
+                DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 

@@ -11,6 +11,7 @@ class TransactionCommission extends Model
         'transaction_id',
         'user_id',
         'percent',
+        'custom_percent',
         'amount',
     ];
 
@@ -18,6 +19,7 @@ class TransactionCommission extends Model
     {
         return [
             'percent' => 'decimal:2',
+            'custom_percent' => 'decimal:2',
             'amount' => 'decimal:2',
         ];
     }

@@ -7,6 +7,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Tests\TestCase;
 
 class CommissionHistoryTest extends TestCase
@@ -76,7 +77,6 @@ class CommissionHistoryTest extends TestCase
         return User::factory()->create([
             'name' => $name,
             'commission_percent' => $percent,
-            'commission_active' => true,
         ]);
     }
 
@@ -98,7 +98,7 @@ class CommissionHistoryTest extends TestCase
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, array{key: string, user_id: int, amount: float}>  $rows
+     * @param  Collection<int, array{key: string, user_id: int, amount: float}>  $rows
      */
     private function amountFor($rows, string $key, int $userId): float
     {

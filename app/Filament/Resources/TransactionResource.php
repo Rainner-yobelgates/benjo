@@ -8,30 +8,33 @@ use App\Models\PriceList;
 use App\Models\Transaction;
 use App\Models\TransactionItem;
 use App\Models\User;
-use Illuminate\Database\Eloquent\Builder;
+use App\Support\Access;
 use App\Support\Money;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
-use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\RepeatableEntry\TableColumn as InfolistTableColumn;
+use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\Alignment;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class TransactionResource extends Resource
 {
@@ -49,6 +52,74 @@ class TransactionResource extends Resource
 
     public static function form(Schema $schema): Schema
     {
+        $canViewFinancial = static::canViewFinancial();
+        $itemTableColumns = [
+            TableColumn::make('Barang')
+                ->width($canViewFinancial ? '48%' : '80%')
+                ->markAsRequired(),
+        ];
+
+        if ($canViewFinancial) {
+            $itemTableColumns[] = TableColumn::make('Harga Satuan')
+                ->width('18%')
+                ->alignment(Alignment::End);
+        }
+
+        $itemTableColumns[] = TableColumn::make('Jumlah')
+            ->width($canViewFinancial ? '12%' : '20%')
+            ->alignment(Alignment::Center)
+            ->markAsRequired();
+
+        if ($canViewFinancial) {
+            $itemTableColumns[] = TableColumn::make('Subtotal')
+                ->width('18%')
+                ->alignment(Alignment::End);
+        }
+
+        $itemSchema = [
+            Select::make('item_id')
+                ->label('Barang')
+                ->placeholder('Cari dan pilih barang')
+                ->native(false)
+                ->options(fn (): array => static::getItemSelectOptions())
+                ->searchable()
+                ->preload()
+                ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                ->live()
+                ->required()
+                ->afterStateUpdated(fn (Set $set, Get $get, ?string $state) => static::syncTransactionItemFromItem($set, $get, $state, $canViewFinancial)),
+            Hidden::make('item_name')
+                ->required(),
+        ];
+
+        if ($canViewFinancial) {
+            $itemSchema[] = Hidden::make('item_price')
+                ->default(0)
+                ->required();
+            $itemSchema[] = Placeholder::make('item_price_preview')
+                ->label('Harga Satuan')
+                ->content(fn (Get $get): string => Money::rupiah($get('item_price')));
+        }
+
+        $itemSchema[] = TextInput::make('quantity')
+            ->label('Jumlah')
+            ->integer()
+            ->minValue(1)
+            ->default(1)
+            ->live()
+            ->placeholder('1')
+            ->required()
+            ->afterStateUpdated(fn (Set $set, Get $get, ?string $state) => static::syncTransactionItemSubtotal($set, $get, $state, $canViewFinancial));
+
+        if ($canViewFinancial) {
+            $itemSchema[] = Hidden::make('subtotal')
+                ->default(0)
+                ->required();
+            $itemSchema[] = Placeholder::make('subtotal_preview')
+                ->label('Subtotal')
+                ->content(fn (Get $get): string => Money::rupiah($get('subtotal')));
+        }
+
         return $schema
             ->components([
                 Section::make('Data Customer & Kendaraan')
@@ -95,57 +166,8 @@ class TransactionResource extends Resource
 
                                 return "{$state['item_name']} x{$quantity}";
                             })
-                            ->table([
-                                TableColumn::make('Barang')
-                                    ->width('48%')
-                                    ->markAsRequired(),
-                                TableColumn::make('Harga Satuan')
-                                    ->width('18%')
-                                    ->alignment(Alignment::End),
-                                TableColumn::make('Jumlah')
-                                    ->width('12%')
-                                    ->alignment(Alignment::Center)
-                                    ->markAsRequired(),
-                                TableColumn::make('Subtotal')
-                                    ->width('18%')
-                                    ->alignment(Alignment::End),
-                            ])
-                            ->schema([
-                                Select::make('item_id')
-                                    ->label('Barang')
-                                    ->placeholder('Cari dan pilih barang')
-                                    ->native(false)
-                                    ->options(fn (): array => static::getItemSelectOptions())
-                                    ->searchable()
-                                    ->preload()
-                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems()
-                                    ->live()
-                                    ->required()
-                                    ->afterStateUpdated(fn (Set $set, Get $get, ?string $state) => static::syncTransactionItemFromItem($set, $get, $state)),
-                                Hidden::make('item_name')
-                                    ->required(),
-                                Hidden::make('item_price')
-                                    ->default(0)
-                                    ->required(),
-                                Placeholder::make('item_price_preview')
-                                    ->label('Harga Satuan')
-                                    ->content(fn (Get $get): string => Money::rupiah($get('item_price'))),
-                                TextInput::make('quantity')
-                                    ->label('Jumlah')
-                                    ->integer()
-                                    ->minValue(1)
-                                    ->default(1)
-                                    ->live()
-                                    ->placeholder('1')
-                                    ->required()
-                                    ->afterStateUpdated(fn (Set $set, Get $get, ?string $state) => static::syncTransactionItemSubtotal($set, $get, $state)),
-                                Hidden::make('subtotal')
-                                    ->default(0)
-                                    ->required(),
-                                Placeholder::make('subtotal_preview')
-                                    ->label('Subtotal')
-                                    ->content(fn (Get $get): string => Money::rupiah($get('subtotal'))),
-                            ])
+                            ->table($itemTableColumns)
+                            ->schema($itemSchema)
                             ->mutateRelationshipDataBeforeCreateUsing(fn (array $data): array => static::normalizeTransactionItemData($data))
                             ->mutateRelationshipDataBeforeSaveUsing(fn (array $data): array => static::normalizeTransactionItemData($data))
                             ->columnSpanFull(),
@@ -173,9 +195,29 @@ class TransactionResource extends Resource
                                 );
                             })
                             ->columnSpanFull(),
-                        Placeholder::make('price_list_income_preview')
-                            ->label('Total Layanan Terpilih')
-                            ->content(fn (Get $get): string => Money::rupiah(static::sumPickedPriceListIncome($get('price_list_picks')))),
+                        TextInput::make('service_fee')
+                            ->label('Biaya Servis')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(0)
+                            ->prefix('Rp')
+                            ->live()
+                            ->helperText('Nominal yang dibayarkan customer untuk jasa servis.')
+                            ->required(),
+                        Select::make('payment_method')
+                            ->label('Metode Pembayaran')
+                            ->options([
+                                'cash' => 'Cash',
+                                'qris' => 'QRIS',
+                            ])
+                            ->default('cash')
+                            ->required()
+                            ->native(false),
+                        ...($canViewFinancial ? [
+                            Placeholder::make('price_list_income_preview')
+                                ->label('Total Layanan Terpilih')
+                                ->content(fn (Get $get): string => Money::rupiah(static::sumPickedPriceListIncome($get('price_list_picks')))),
+                        ] : []),
                     ])
                     ->columns(2)
                     ->columnSpanFull(),
@@ -196,55 +238,29 @@ class TransactionResource extends Resource
                             ->live()
                             ->helperText('User baru yang dapat dipilih harus memiliki komisi aktif dan persentase di atas 0%.')
                             ->columnSpanFull(),
-                        Placeholder::make('commission_preview')
-                            ->label('Estimasi Komisi Peserta')
-                            ->content(fn (Get $get): string => static::commissionPreview(
-                                $get('participant_ids'),
-                                (float) ($get('service_fee') ?: 0) + static::sumPickedPriceListIncome($get('price_list_picks')),
-                            ))
-                            ->columnSpanFull(),
+                        ...($canViewFinancial ? [
+                            Placeholder::make('commission_preview')
+                                ->label('Estimasi Komisi Peserta')
+                                ->content(fn (Get $get): string => static::commissionPreview(
+                                    $get('participant_ids'),
+                                    (float) ($get('service_fee') ?: 0) + static::sumPickedPriceListIncome($get('price_list_picks')),
+                                ))
+                                ->columnSpanFull(),
+                        ] : []),
                     ])
                     ->columns(1)
-                    ->columnSpanFull(),
-                Section::make('Biaya & Ringkasan')
-                    ->description('Total pemasukan = Biaya Servis + layanan daftar harga. Pengeluaran barang dihitung dari seluruh barang di atas.')
-                    ->icon('heroicon-o-calculator')
-                    ->schema([
-                        TextInput::make('service_fee')
-                            ->label('Biaya Servis')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(0)
-                            ->prefix('Rp')
-                            ->live()
-                            ->helperText('Nominal yang dibayarkan customer untuk jasa servis.')
-                            ->required(),
-                        Placeholder::make('total_item_cost_preview')
-                            ->label('Total Pengeluaran Barang')
-                            ->content(fn (Get $get): string => Money::rupiah(static::sumTransactionItemSubtotals($get('transactionItems')))),
-                        Placeholder::make('total_income_preview')
-                            ->label('Total Pemasukan (Biaya Servis + Layanan)')
-                            ->content(fn (Get $get): string => Money::rupiah(
-                                (float) ($get('service_fee') ?: 0) + static::sumPickedPriceListIncome($get('price_list_picks')),
-                            )),
-                        Placeholder::make('gross_profit_preview')
-                            ->label('Estimasi Profit Transaksi')
-                            ->content(fn (Get $get): string => Money::rupiah(
-                                (float) ($get('service_fee') ?: 0)
-                                    + static::sumPickedPriceListIncome($get('price_list_picks'))
-                                    - static::sumTransactionItemSubtotals($get('transactionItems')),
-                            )),
-                    ])
-                    ->columns(3)
                     ->columnSpanFull(),
             ]);
     }
 
     public static function infolist(Schema $schema): Schema
     {
+        $canViewFinancial = static::canViewFinancial();
+
         return $schema
             ->components([
-                Section::make('Informasi Transaksi')
+                Section::make('Ringkasan Transaksi')
+                    ->icon('heroicon-o-clipboard-document-check')
                     ->schema([
                         TextEntry::make('transaction_number')
                             ->label('No. Transaksi'),
@@ -256,6 +272,12 @@ class TransactionResource extends Resource
                             ->badge()
                             ->formatStateUsing(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'Terkunci' : 'Draft')
                             ->color(fn (string $state): string => $state === Transaction::STATUS_LOCKED ? 'success' : 'warning'),
+                        TextEntry::make('payment_method')
+                            ->label('Metode Pembayaran')
+                            ->formatStateUsing(fn (?string $state): string => match ($state) {
+                                'qris' => 'QRIS',
+                                default => 'Cash',
+                            }),
                         TextEntry::make('customer_name')
                             ->label('Nama Customer'),
                         TextEntry::make('customer_phone')
@@ -268,62 +290,87 @@ class TransactionResource extends Resource
                             ->label('Deskripsi Servis')
                             ->placeholder('-')
                             ->columnSpanFull(),
-                        TextEntry::make('service_fee')
-                            ->label('Biaya Servis')
-                            ->money('IDR', locale: 'id', decimalPlaces: 0),
-                        TextEntry::make('total_income')
-                            ->label('Total Pemasukan (Biaya Servis + Layanan)')
-                            ->money('IDR', locale: 'id', decimalPlaces: 0),
-                        TextEntry::make('total_item_cost')
-                            ->label('Total Modal Barang')
-                            ->money('IDR', locale: 'id', decimalPlaces: 0),
-                        TextEntry::make('gross_profit')
-                            ->label('Gross Profit')
-                            ->money('IDR', locale: 'id', decimalPlaces: 0),
                     ])
-                    ->columns(2),
-                Section::make('Layanan Servis (Daftar Harga)')
+                    ->columns(['md' => 2, 'xl' => 3])
+                    ->columnSpanFull(),
+                Grid::make(['lg' => 2])
                     ->schema([
-                        TextEntry::make('price_list_services')
-                            ->label('')
-                            ->listWithLineBreaks()
-                            ->state(fn (Transaction $record): array => $record->transactionItems
-                                ->whereNotNull('price_list_id')
-                                ->map(fn (TransactionItem $item): string => "{$item->item_name} x{$item->quantity} — " . Money::rupiah($item->subtotal))
-                                ->values()
-                                ->all())
-                            ->placeholder('Tidak ada layanan daftar harga.'),
+                        Section::make('Barang Digunakan')
+                            ->icon('heroicon-o-cube')
+                            ->schema([
+                                TextEntry::make('items_summary')
+                                    ->label('Daftar Barang')
+                                    ->listWithLineBreaks()
+                                    ->state(fn (Transaction $record): array => $record->transactionItems
+                                        ->whereNull('price_list_id')
+                                        ->map(fn (TransactionItem $item): string => $canViewFinancial
+                                            ? "{$item->item_name} × {$item->quantity} — Modal ".Money::rupiah($item->item_price).', subtotal '.Money::rupiah($item->subtotal)
+                                            : "{$item->item_name} × {$item->quantity}")
+                                        ->values()
+                                        ->all())
+                                    ->placeholder('Belum ada barang yang digunakan.'),
+                            ]),
+                        Section::make('Layanan Servis')
+                            ->icon('heroicon-o-wrench-screwdriver')
+                            ->schema([
+                                TextEntry::make('price_list_services')
+                                    ->label('Layanan Terpilih')
+                                    ->listWithLineBreaks()
+                                    ->state(fn (Transaction $record): array => $record->transactionItems
+                                        ->whereNotNull('price_list_id')
+                                        ->map(fn (TransactionItem $item): string => $canViewFinancial
+                                            ? "{$item->item_name} x{$item->quantity} — ".Money::rupiah($item->subtotal)
+                                            : "{$item->item_name} x{$item->quantity}")
+                                        ->values()->all())
+                                    ->placeholder('Belum ada layanan daftar harga.'),
+                            ]),
                     ])
                     ->columnSpanFull(),
-                Section::make('Barang Digunakan')
+                Section::make('User Terlibat')
+                    ->icon('heroicon-o-users')
                     ->schema([
-                        RepeatableEntry::make('transactionItems')
-                            ->label('')
-                            ->table([
-                                InfolistTableColumn::make('Barang'),
-                                InfolistTableColumn::make('Harga Modal')->alignment(Alignment::End),
-                                InfolistTableColumn::make('Qty')->alignment(Alignment::Center),
-                                InfolistTableColumn::make('Subtotal')->alignment(Alignment::End),
-                            ])
-                            ->schema([
-                                TextEntry::make('item_name')
-                                    ->label('Barang'),
-                                TextEntry::make('item_price')
-                                    ->label('Harga Modal')
-                                    ->money('IDR', locale: 'id', decimalPlaces: 0),
-                                TextEntry::make('quantity')
-                                    ->label('Qty'),
-                                TextEntry::make('subtotal')
-                                    ->label('Subtotal')
-                                    ->money('IDR', locale: 'id', decimalPlaces: 0),
-                            ]),
-                    ]),
+                        TextEntry::make('participants_summary')
+                            ->label('Peserta Transaksi')
+                            ->listWithLineBreaks()
+                            ->state(fn (Transaction $record): array => $record->participants->map(function (User $user) use ($record, $canViewFinancial): string {
+                                if (! $canViewFinancial) {
+                                    return $user->name;
+                                }
+                                $commission = $record->commissions->firstWhere('user_id', $user->id);
+                                $suffix = $commission ? ' — '.$commission->percent.'% • '.Money::rupiah($commission->amount) : '';
+
+                                return $user->name.$suffix;
+                            })->all())
+                            ->placeholder('Belum ada user yang terlibat.'),
+                    ])
+                    ->columnSpanFull(),
+                Section::make('Ringkasan Keuangan')
+                    ->icon('heroicon-o-banknotes')
+                    ->visible($canViewFinancial)
+                    ->schema([
+                        TextEntry::make('total_income')
+                            ->label('Pendapatan')
+                            ->hintIcon('heroicon-o-information-circle', fn (Transaction $record): string => static::incomeSourceTooltip($record))
+                            ->money('IDR', locale: 'id', decimalPlaces: 0),
+                        TextEntry::make('total_item_cost')->label('Modal Barang')->money('IDR', locale: 'id', decimalPlaces: 0),
+                        TextEntry::make('gross_profit')->label('Profit')->money('IDR', locale: 'id', decimalPlaces: 0),
+                        TextEntry::make('total_commission')->label('Total Komisi Peserta')->money('IDR', locale: 'id', decimalPlaces: 0)
+                            ->state(fn (Transaction $record): float => (float) $record->commissions->sum('amount')),
+                    ])
+                    ->columns(['md' => 2, 'xl' => 5])
+                    ->columnSpanFull(),
             ]);
     }
 
     public static function table(Table $table): Table
     {
+        $canViewFinancial = static::canViewFinancial();
+
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with([
+                'participants:id,name',
+                'transactionItems:id,transaction_id,price_list_id,item_name,quantity,subtotal',
+            ]))
             ->columns([
                 TextColumn::make('transaction_number')
                     ->label('No. Transaksi')
@@ -347,57 +394,137 @@ class TransactionResource extends Resource
                     ->label('Kendaraan')
                     ->searchable()
                     ->placeholder('-'),
+                TextColumn::make('participants_summary')
+                    ->label('Pekerja')
+                    ->state(fn (Transaction $record): string => $record->participants
+                        ->pluck('name')
+                        ->implode(', '))
+                    ->placeholder('-')
+                    ->wrap(),
+                TextColumn::make('services_summary')
+                    ->label('Layanan')
+                    ->state(fn (Transaction $record): string => $record->transactionItems
+                        ->whereNotNull('price_list_id')
+                        ->map(fn (TransactionItem $item): string => "{$item->item_name} × {$item->quantity}")
+                        ->implode(', '))
+                    ->placeholder('-')
+                    ->wrap(),
+                TextColumn::make('payment_method')
+                    ->label('Pembayaran')
+                    ->badge()
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'qris' => 'QRIS',
+                        default => 'Cash',
+                    })
+                    ->color(fn (?string $state): string => $state === 'qris' ? 'info' : 'success')
+                    ->sortable(),
                 TextColumn::make('service_fee')
                     ->label('Biaya Servis')
                     ->money('IDR', locale: 'id', decimalPlaces: 0)
+                    ->visible($canViewFinancial)
                     ->sortable(),
                 TextColumn::make('total_income')
-                    ->label('Total Pemasukan')
+                    ->label('Pendapatan')
+                    ->icon('heroicon-o-information-circle')
+                    ->iconColor('gray')
+                    ->tooltip(fn (Transaction $record): string => static::incomeSourceTooltip($record))
                     ->money('IDR', locale: 'id', decimalPlaces: 0)
+                    ->visible($canViewFinancial)
                     ->sortable(),
                 TextColumn::make('total_item_cost')
                     ->label('Total Modal')
                     ->money('IDR', locale: 'id', decimalPlaces: 0)
+                    ->visible($canViewFinancial)
                     ->sortable(),
                 TextColumn::make('gross_profit')
-                    ->label('Gross Profit')
+                    ->label('Profit')
                     ->money('IDR', locale: 'id', decimalPlaces: 0)
+                    ->visible($canViewFinancial)
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Dibuat')
                     ->dateTime('d M Y H:i')
                     ->sortable(),
             ])
+            ->filters([
+                Filter::make('transaction_date_range')
+                    ->label('Tanggal Transaksi')
+                    ->schema([
+                        DatePicker::make('from')
+                            ->label('Dari tanggal'),
+                        DatePicker::make('until')
+                            ->label('Sampai tanggal'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['from'] ?? null,
+                                fn (Builder $query, string $date): Builder => $query->whereDate('transaction_date', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'] ?? null,
+                                fn (Builder $query, string $date): Builder => $query->whereDate('transaction_date', '<=', $date),
+                            );
+                    }),
+                SelectFilter::make('status')
+                    ->label('Status Transaksi')
+                    ->options([
+                        Transaction::STATUS_DRAFT => 'Draft',
+                        Transaction::STATUS_LOCKED => 'Terkunci',
+                    ]),
+                SelectFilter::make('participant_id')
+                    ->label('Pekerja')
+                    ->options(fn (): array => User::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'] ?? null,
+                            fn (Builder $query, int|string $userId): Builder => $query->whereHas(
+                                'participants',
+                                fn (Builder $participants): Builder => $participants->whereKey($userId),
+                            ),
+                        );
+                    }),
+                SelectFilter::make('price_list_id')
+                    ->label('Layanan')
+                    ->options(fn (): array => PriceList::query()
+                        ->orderBy('name')
+                        ->pluck('name', 'id')
+                        ->all())
+                    ->searchable()
+                    ->preload()
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query->when(
+                            $data['value'] ?? null,
+                            fn (Builder $query, int|string $priceListId): Builder => $query->whereHas(
+                                'transactionItems',
+                                fn (Builder $items): Builder => $items->where('price_list_id', $priceListId),
+                            ),
+                        );
+                    }),
+                SelectFilter::make('payment_method')
+                    ->label('Metode Pembayaran')
+                    ->options([
+                        'cash' => 'Cash',
+                        'qris' => 'QRIS',
+                    ]),
+            ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
                 Action::make('print')
                     ->label('Print PDF')
                     ->icon('heroicon-o-printer')
+                    ->iconButton()
+                    ->tooltip('Print PDF')
                     ->url(fn (Transaction $record): string => route('transactions.print', $record))
                     ->openUrlInNewTab(),
-                Action::make('lock')
-                    ->label('Selesaikan & Kunci')
-                    ->icon('heroicon-o-lock-closed')
-                    ->color('success')
-                    ->authorize('lock')
-                    ->visible(fn (Transaction $record): bool => $record->isDraft())
-                    ->requiresConfirmation()
-                    ->modalHeading('Selesaikan dan kunci transaksi?')
-                    ->modalDescription('Total dan komisi akan dikunci sebagai histori dan tidak dapat diubah melalui form biasa.')
-                    ->action(fn (Transaction $record) => $record->lock()),
-                Action::make('unlock')
-                    ->label('Buka Kunci')
-                    ->icon('heroicon-o-lock-open')
-                    ->color('warning')
-                    ->authorize('unlock')
-                    ->visible(fn (Transaction $record): bool => $record->isLocked())
-                    ->requiresConfirmation()
-                    ->modalHeading('Buka kunci transaksi?')
-                    ->modalDescription('Transaksi akan kembali menjadi Draft. Komisi akan mengikuti total dan persentase user terbaru.')
-                    ->action(fn (Transaction $record) => $record->unlock()),
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ViewAction::make()->iconButton()->tooltip('Lihat'),
+                EditAction::make()->iconButton()->tooltip('Ubah'),
+                DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 
@@ -414,24 +541,114 @@ class TransactionResource extends Resource
         ];
     }
 
-    protected static function syncTransactionItemFromItem(Set $set, Get $get, ?string $state): void
+    public static function canViewFinancial(): bool
     {
-        $item = filled($state) ? Item::query()->find($state) : null;
-        $price = (float) ($item?->price ?? 0);
-        $quantity = max(1, (int) ($get('quantity') ?: 1));
-
-        $set('item_name', $item?->name ?? '');
-        $set('item_price', $price);
-        $set('subtotal', $price * $quantity);
+        return auth()->user()?->can(Access::TRANSACTIONS_VIEW_FINANCIAL) ?? false;
     }
 
-    protected static function syncTransactionItemSubtotal(Set $set, Get $get, mixed $state): void
+    public static function incomeSourceTooltip(Transaction $record): string
+    {
+        $serviceFee = (float) $record->service_fee;
+        $priceListIncome = (float) $record->transactionItems
+            ->whereNotNull('price_list_id')
+            ->sum('subtotal');
+
+        if ($serviceFee > 0 && $priceListIncome > 0) {
+            return 'Pendapatan dari Biaya Servis '.Money::rupiah($serviceFee)
+                .' dan Daftar Harga '.Money::rupiah($priceListIncome).'.';
+        }
+
+        if ($serviceFee > 0) {
+            return 'Pendapatan seluruhnya dari Biaya Servis '.Money::rupiah($serviceFee).'.';
+        }
+
+        if ($priceListIncome > 0) {
+            return 'Pendapatan seluruhnya dari Daftar Harga '.Money::rupiah($priceListIncome).'.';
+        }
+
+        return 'Belum ada Biaya Servis atau layanan Daftar Harga pada transaksi ini.';
+    }
+
+    public static function lockAction(): Action
+    {
+        return Action::make('lock')
+            ->label('Kunci')
+            ->icon('heroicon-o-lock-closed')
+            ->color('success')
+            ->authorize('lock')
+            ->visible(fn (Transaction $record): bool => $record->isDraft())
+            ->requiresConfirmation()
+            ->modalHeading('Kunci transaksi?')
+            ->modalDescription('Total dan komisi akan dikunci sebagai histori.')
+            ->action(fn (Transaction $record): mixed => $record->lock());
+    }
+
+    public static function customCommissionAction(): Action
+    {
+        return Action::make('customCommission')
+            ->label('Atur Komisi Custom')
+            ->icon('heroicon-o-adjustments-horizontal')
+            ->color('gray')
+            ->authorize('update')
+            ->visible(fn (Transaction $record): bool => $record->isDraft() && static::canViewFinancial())
+            ->modalHeading('Atur Komisi Khusus Transaksi')
+            ->modalDescription('Pilih peserta lalu isi persen khusus. Kosongkan persen untuk kembali memakai pengaturan user.')
+            ->schema(function (Action $action): array {
+                /** @var Transaction $record */
+                $record = $action->getRecord();
+                $commissions = $record->commissions->keyBy('user_id');
+
+                return [
+                    Select::make('user_id')
+                        ->label('User Terlibat')
+                        ->options($record->participants->mapWithKeys(function (User $user) use ($commissions): array {
+                            $percent = $commissions->get($user->id)?->percent ?? $user->commission_percent;
+
+                            return [$user->id => "{$user->name} ({$percent}%)"];
+                        })->all())
+                        ->required()
+                        ->searchable(),
+                    TextInput::make('custom_percent')
+                        ->label('Persen Custom')
+                        ->numeric()
+                        ->minValue(0)
+                        ->maxValue(100)
+                        ->suffix('%')
+                        ->nullable(),
+                ];
+            })
+            ->action(function (array $data, Transaction $record): void {
+                $record->applyCustomCommissionPercents([(int) $data['user_id'] => $data['custom_percent'] ?? null]);
+                $record->syncDraftCommissionSnapshots();
+            });
+    }
+
+    protected static function syncTransactionItemFromItem(Set $set, Get $get, ?string $state, bool $canViewFinancial): void
+    {
+        $item = filled($state) ? Item::query()->find($state) : null;
+
+        $set('item_name', $item?->name ?? '');
+
+        if ($canViewFinancial) {
+            $price = (float) ($item?->price ?? 0);
+            $quantity = max(1, (int) ($get('quantity') ?: 1));
+
+            $set('item_price', $price);
+            $set('subtotal', $price * $quantity);
+        }
+    }
+
+    protected static function syncTransactionItemSubtotal(Set $set, Get $get, mixed $state, bool $canViewFinancial): void
     {
         $quantity = max(1, (int) ($state ?: 1));
-        $price = (float) ($get('item_price') ?: 0);
 
         $set('quantity', $quantity);
-        $set('subtotal', $price * $quantity);
+
+        if ($canViewFinancial) {
+            $price = (float) ($get('item_price') ?: 0);
+
+            $set('subtotal', $price * $quantity);
+        }
     }
 
     protected static function sumTransactionItemSubtotals(mixed $items): float
@@ -478,7 +695,7 @@ class TransactionResource extends Resource
     {
         $priceLabel = Money::rupiah($item->price ?? 0);
         $description = filled($item->description)
-            ? ' - ' . str($item->description)->limit(40)->toString()
+            ? ' - '.str($item->description)->limit(40)->toString()
             : '';
 
         return "{$item->name} ({$priceLabel}){$description}";
@@ -521,17 +738,12 @@ class TransactionResource extends Resource
         return User::query()
             ->where(function (Builder $query) use ($existingIds): void {
                 $query->where(function (Builder $query): void {
-                    $query->where('commission_active', true)
-                        ->where('commission_percent', '>', 0);
+                    $query->where('commission_percent', '>', 0);
                 })->orWhereIn('id', $existingIds);
             })
             ->orderBy('name')
             ->get()
-            ->mapWithKeys(function (User $user): array {
-                $status = $user->hasActiveCommission() ? '' : ' — riwayat (nonaktif)';
-
-                return [$user->id => "{$user->name} ({$user->commission_percent}%){$status}"];
-            })
+            ->mapWithKeys(fn (User $user): array => [$user->id => "{$user->name} ({$user->commission_percent}%)"])
             ->all();
     }
 
@@ -539,13 +751,12 @@ class TransactionResource extends Resource
     {
         $participants = User::query()
             ->whereIn('id', array_filter((array) ($participantIds ?? [])))
-            ->where('commission_active', true)
             ->where('commission_percent', '>', 0)
             ->get();
 
         if ($participants->isEmpty()) {
             return filled($participantIds)
-                ? 'Tidak ada peserta aktif baru. Peserta riwayat yang nonaktif tetap menyimpan snapshot komisi sebelumnya.'
+                ? 'Tidak ada peserta dengan persentase komisi di atas 0%.'
                 : 'Belum ada user yang dipilih. Tidak ada komisi yang akan dibuat.';
         }
 
@@ -559,9 +770,9 @@ class TransactionResource extends Resource
             fn (User $user): float => round($grossAmount * (float) $user->commission_percent / 100, 2),
         );
 
-        return 'Nilai Tagihan Bruto ' . Money::rupiah($grossAmount)
-            . ' — ' . $details->implode(', ')
-            . '. Total komisi peserta: ' . Money::rupiah($total) . '.';
+        return 'Nilai Tagihan Bruto '.Money::rupiah($grossAmount)
+            .' — '.$details->implode(', ')
+            .'. Total komisi peserta: '.Money::rupiah($total).'.';
     }
 
     protected static function sumPickedPriceListIncome(mixed $picks): float
@@ -587,7 +798,7 @@ class TransactionResource extends Resource
     {
         $priceLabel = Money::rupiah($priceList->price ?? 0);
         $description = filled($priceList->description)
-            ? ' - ' . str($priceList->description)->limit(40)->toString()
+            ? ' - '.str($priceList->description)->limit(40)->toString()
             : '';
 
         return "{$priceList->name} ({$priceLabel}){$description}";

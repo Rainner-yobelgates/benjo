@@ -24,7 +24,7 @@ class EditTransaction extends EditRecord
     /**
      * Layanan daftar harga yang dipilih di form (lihat CreateTransaction).
      *
-     * @var  array<int, int>
+     * @var array<int, int>
      */
     protected array $priceListPicks = [];
 
@@ -58,19 +58,7 @@ class EditTransaction extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('lock')
-                ->label('Selesaikan & Kunci')
-                ->icon(Heroicon::OutlinedLockClosed)
-                ->color('success')
-                ->authorize('lock')
-                ->visible(fn (): bool => $this->record->isDraft())
-                ->requiresConfirmation()
-                ->modalHeading('Selesaikan dan kunci transaksi?')
-                ->modalDescription('Total dan komisi akan dikunci sebagai histori dan tidak dapat diubah melalui form biasa.')
-                ->action(function (): void {
-                    $this->record->lock();
-                    $this->redirect(TransactionResource::getUrl('view', ['record' => $this->record]));
-                }),
+            TransactionResource::lockAction(),
             Action::make('print')
                 ->label('Print PDF')
                 ->icon(Heroicon::OutlinedPrinter)

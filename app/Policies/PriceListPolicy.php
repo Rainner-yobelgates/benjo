@@ -35,6 +35,6 @@ class PriceListPolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $this->can($user, Access::PRICE_LISTS_DELETE_ANY);
+        return $this->can($user, Access::PRICE_LISTS_DELETE);
     }
 }

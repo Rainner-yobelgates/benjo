@@ -80,9 +80,9 @@ class PriceListResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ViewAction::make()->iconButton()->tooltip('Lihat'),
+                EditAction::make()->iconButton()->tooltip('Ubah'),
+                DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 

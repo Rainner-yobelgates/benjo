@@ -18,48 +18,71 @@ class Access
     public const DASHBOARD_VIEW = 'dashboard.view';
 
     public const TRANSACTIONS_VIEW_ANY = 'transactions.view_any';
+
     public const TRANSACTIONS_VIEW = 'transactions.view';
+
     public const TRANSACTIONS_CREATE = 'transactions.create';
+
     public const TRANSACTIONS_UPDATE = 'transactions.update';
-    public const TRANSACTIONS_UNLOCK = 'transactions.unlock';
+
+    public const TRANSACTIONS_VIEW_FINANCIAL = 'transactions.view_financial';
+
+    public const TRANSACTIONS_LOCK = 'transactions.lock';
+
     public const TRANSACTIONS_DELETE = 'transactions.delete';
-    public const TRANSACTIONS_DELETE_ANY = 'transactions.delete_any';
 
     public const ITEMS_VIEW_ANY = 'items.view_any';
+
     public const ITEMS_VIEW = 'items.view';
+
     public const ITEMS_CREATE = 'items.create';
+
     public const ITEMS_UPDATE = 'items.update';
+
     public const ITEMS_DELETE = 'items.delete';
-    public const ITEMS_DELETE_ANY = 'items.delete_any';
 
     public const PRICE_LISTS_VIEW_ANY = 'price_lists.view_any';
+
     public const PRICE_LISTS_VIEW = 'price_lists.view';
+
     public const PRICE_LISTS_CREATE = 'price_lists.create';
+
     public const PRICE_LISTS_UPDATE = 'price_lists.update';
+
     public const PRICE_LISTS_DELETE = 'price_lists.delete';
-    public const PRICE_LISTS_DELETE_ANY = 'price_lists.delete_any';
 
     public const CASHOUTS_VIEW_ANY = 'cashouts.view_any';
+
     public const CASHOUTS_VIEW = 'cashouts.view';
+
     public const CASHOUTS_CREATE = 'cashouts.create';
+
     public const CASHOUTS_UPDATE = 'cashouts.update';
+
     public const CASHOUTS_DELETE = 'cashouts.delete';
-    public const CASHOUTS_DELETE_ANY = 'cashouts.delete_any';
 
     public const SETTINGS_VIEW_ANY = 'settings.view_any';
+
     public const SETTINGS_UPDATE = 'settings.update';
 
     public const USERS_VIEW_ANY = 'users.view_any';
+
     public const USERS_VIEW = 'users.view';
+
     public const USERS_CREATE = 'users.create';
+
     public const USERS_UPDATE = 'users.update';
+
     public const USERS_DELETE = 'users.delete';
-    public const USERS_DELETE_ANY = 'users.delete_any';
 
     public const ROLES_VIEW_ANY = 'roles.view_any';
+
     public const ROLES_VIEW = 'roles.view';
+
     public const ROLES_CREATE = 'roles.create';
+
     public const ROLES_UPDATE = 'roles.update';
+
     public const ROLES_DELETE = 'roles.delete';
 
     public const PERMISSIONS_VIEW_ANY = 'permissions.view_any';
@@ -74,9 +97,9 @@ class Access
         'view_any' => 'Lihat Semua',
         'create' => 'Tambah',
         'update' => 'Ubah',
-        'unlock' => 'Buka Kunci',
+        'view_financial' => 'Ringkasan Keuangan',
+        'lock' => 'Kunci Transaksi',
         'delete' => 'Hapus',
-        'delete_any' => 'Hapus Semua',
         'restore' => 'Pulihkan',
         'restore_any' => 'Pulihkan Semua',
         'force_delete' => 'Hapus Permanen',
@@ -132,10 +155,10 @@ class Access
         'view_any' => 20,
         'create' => 30,
         'update' => 40,
-        'unlock' => 45,
+        'view_financial' => 42,
+        'lock' => 45,
         'approve' => 50,
         'delete' => 60,
-        'delete_any' => 70,
         'restore' => 80,
         'restore_any' => 90,
         'force_delete' => 100,
@@ -161,30 +184,27 @@ class Access
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
             Access::TRANSACTIONS_UPDATE,
-            Access::TRANSACTIONS_UNLOCK,
+            Access::TRANSACTIONS_VIEW_FINANCIAL,
+            Access::TRANSACTIONS_LOCK,
             Access::TRANSACTIONS_DELETE,
-            Access::TRANSACTIONS_DELETE_ANY,
 
             Access::ITEMS_VIEW_ANY,
             Access::ITEMS_VIEW,
             Access::ITEMS_CREATE,
             Access::ITEMS_UPDATE,
             Access::ITEMS_DELETE,
-            Access::ITEMS_DELETE_ANY,
 
             Access::PRICE_LISTS_VIEW_ANY,
             Access::PRICE_LISTS_VIEW,
             Access::PRICE_LISTS_CREATE,
             Access::PRICE_LISTS_UPDATE,
             Access::PRICE_LISTS_DELETE,
-            Access::PRICE_LISTS_DELETE_ANY,
 
             Access::CASHOUTS_VIEW_ANY,
             Access::CASHOUTS_VIEW,
             Access::CASHOUTS_CREATE,
             Access::CASHOUTS_UPDATE,
             Access::CASHOUTS_DELETE,
-            Access::CASHOUTS_DELETE_ANY,
 
             Access::SETTINGS_VIEW_ANY,
             Access::SETTINGS_UPDATE,
@@ -194,7 +214,6 @@ class Access
             Access::USERS_CREATE,
             Access::USERS_UPDATE,
             Access::USERS_DELETE,
-            Access::USERS_DELETE_ANY,
 
             Access::ROLES_VIEW_ANY,
             Access::ROLES_VIEW,
@@ -236,8 +255,8 @@ class Access
             [$module, $action] = explode('.', $permission, 2);
 
             $grouped[$module] ??= [
-                'label'   => self::moduleLabel($module),
-                'key'     => $module,
+                'label' => self::moduleLabel($module),
+                'key' => $module,
                 'actions' => [],
             ];
 

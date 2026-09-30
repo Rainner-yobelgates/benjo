@@ -8,7 +8,6 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -28,7 +27,7 @@ class UserResource extends Resource
 
     protected static ?string $pluralModelLabel = 'User';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 90;
 
     public static function form(Schema $schema): Schema
     {
@@ -60,10 +59,6 @@ class UserResource extends Resource
                             ->searchable()
                             ->preload()
                             ->required(),
-                        Toggle::make('commission_active')
-                            ->label('Komisi Aktif')
-                            ->helperText('Aktifkan agar user ini menerima komisi dari setiap transaksi.')
-                            ->live(),
                         TextInput::make('commission_percent')
                             ->label('Persen Komisi')
                             ->numeric()
@@ -92,10 +87,8 @@ class UserResource extends Resource
                     ->badge()
                     ->color('gray'),
                 TextColumn::make('commission_percent')
-                    ->label('Komisi')
-                    ->formatStateUsing(fn ($state, User $record): string => $record->hasActiveCommission()
-                        ? "{$state}% (Aktif)"
-                        : (($state === null) ? '-' : "{$state}% (Nonaktif)"))
+                    ->label('Persentase Komisi')
+                    ->suffix('%')
                     ->placeholder('-')
                     ->toggleable(),
                 TextColumn::make('created_at')
@@ -105,8 +98,8 @@ class UserResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()->iconButton()->tooltip('Ubah'),
+                DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 

@@ -35,6 +35,6 @@ class ItemPolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $this->can($user, Access::ITEMS_DELETE_ANY);
+        return $this->can($user, Access::ITEMS_DELETE);
     }
 }

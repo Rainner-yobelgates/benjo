@@ -8,8 +8,8 @@ use App\Support\Money;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -80,9 +80,9 @@ class ItemResource extends Resource
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                ViewAction::make()->iconButton()->tooltip('Lihat'),
+                EditAction::make()->iconButton()->tooltip('Ubah'),
+                DeleteAction::make()->iconButton()->tooltip('Hapus'),
             ]);
     }
 

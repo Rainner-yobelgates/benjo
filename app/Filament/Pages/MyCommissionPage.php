@@ -2,11 +2,11 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\TransactionCommission;
+use App\Filament\Resources\TransactionResource;
 use App\Models\Transaction;
+use App\Models\TransactionCommission;
 use App\Models\User;
 use App\Support\Money;
-use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Carbon;
@@ -16,13 +16,37 @@ class MyCommissionPage extends Page
 {
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-currency-dollar';
 
-    protected static ?string $navigationLabel = 'Komisi Saya';
+    protected static ?string $navigationLabel = 'Komisi';
+
+    protected static ?string $title = 'Komisi';
 
     protected static ?int $navigationSort = 10;
 
     protected string $view = 'filament.pages.my-commission-page';
 
-    public string $period = 'month';
+    public string $period = 'day';
+
+    public string $dailyDate = '';
+
+    public string $weeklyStartDate = '';
+
+    public string $monthlyStart = '';
+
+    public ?int $selectedUserId = null;
+
+    public function mount(): void
+    {
+        $this->dailyDate = now()->toDateString();
+        $this->weeklyStartDate = now()->startOfWeek()->toDateString();
+        $this->monthlyStart = now()->startOfMonth()->format('Y-m');
+
+        $userId = User::query()
+            ->where('commission_percent', '>', 0)
+            ->orderBy('name')
+            ->value('id');
+
+        $this->selectedUserId = $userId === null ? null : (int) $userId;
+    }
 
     public function content(Schema $schema): Schema
     {
@@ -34,6 +58,102 @@ class MyCommissionPage extends Page
         if (in_array($period, ['day', 'week', 'month'], true)) {
             $this->period = $period;
         }
+    }
+
+    public function selectUser(int $userId): void
+    {
+        if (! $this->userCommissionCards->contains('id', $userId)) {
+            return;
+        }
+
+        $this->selectedUserId = $this->selectedUserId === $userId ? null : $userId;
+    }
+
+    public function getSelectedUserNameProperty(): ?string
+    {
+        return $this->userCommissionCards
+            ->firstWhere('id', $this->selectedUserId)?->name;
+    }
+
+    public function getSelectedUserTransactionsUrlProperty(): ?string
+    {
+        if ($this->selectedUserId === null) {
+            return null;
+        }
+
+        [$start, $end] = $this->periodRange($this->period);
+
+        return TransactionResource::getUrl('index', [
+            'tableFilters' => [
+                'transaction_date_range' => [
+                    'from' => $start->toDateString(),
+                    'until' => $end->toDateString(),
+                ],
+                'participant_id' => [
+                    'value' => $this->selectedUserId,
+                ],
+            ],
+        ]);
+    }
+
+    /**
+     * @return array<int, array{date: string, label: string}>
+     */
+    public function getRecentDailyDatesProperty(): array
+    {
+        return collect(range(0, 6))
+            ->map(function (int $offset): array {
+                $date = now()->startOfDay()->subDays($offset);
+
+                return [
+                    'date' => $date->toDateString(),
+                    'label' => match ($offset) {
+                        0 => 'Hari ini — '.$date->translatedFormat('d M Y'),
+                        1 => 'Kemarin — '.$date->translatedFormat('d M Y'),
+                        default => $date->locale('id')->translatedFormat('l, d M Y'),
+                    },
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{date: string, label: string}>
+     */
+    public function getRecentWeeklyPeriodsProperty(): array
+    {
+        return collect(range(0, 7))
+            ->map(function (int $offset): array {
+                $start = now()->startOfWeek()->subWeeks($offset);
+                $end = $start->copy()->endOfWeek();
+
+                return [
+                    'date' => $start->toDateString(),
+                    'label' => $offset === 0
+                        ? 'Minggu ini — '.$start->format('d M').' s.d. '.$end->format('d M Y')
+                        : $start->format('d M').' s.d. '.$end->format('d M Y'),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{key: string, label: string}>
+     */
+    public function getRecentMonthlyPeriodsProperty(): array
+    {
+        return collect(range(0, 11))
+            ->map(function (int $offset): array {
+                $start = now()->startOfMonth()->subMonthsNoOverflow($offset);
+
+                return [
+                    'key' => $start->format('Y-m'),
+                    'label' => $offset === 0
+                        ? 'Bulan ini — '.$start->locale('id')->translatedFormat('F Y')
+                        : $start->locale('id')->translatedFormat('F Y'),
+                ];
+            })
+            ->all();
     }
 
     /**
@@ -52,9 +172,13 @@ class MyCommissionPage extends Page
                         default => 'Komisi Bulanan',
                     },
                     'description' => match ($period) {
-                        'day' => 'Hari ini, ' . $start->format('d M Y'),
-                        'week' => 'Minggu berjalan',
-                        default => 'Bulan ' . $start->translatedFormat('F Y'),
+                        'day' => $start->isToday()
+                            ? 'Hari ini, '.$start->format('d M Y')
+                            : $start->locale('id')->translatedFormat('l, d M Y'),
+                        'week' => $start->isSameWeek(now())
+                            ? 'Minggu berjalan'
+                            : $start->format('d M').' s.d. '.$end->format('d M Y'),
+                        default => 'Bulan '.$start->translatedFormat('F Y'),
                     },
                     'amount' => $this->commissionTotalBetween($start, $end),
                 ]];
@@ -100,9 +224,37 @@ class MyCommissionPage extends Page
     public function getActivePeriodLabelProperty(): string
     {
         return match ($this->period) {
-            'day' => 'Harian',
-            'week' => 'Mingguan',
-            default => 'Bulanan',
+            'day' => $this->dailyRangeStart()->isToday()
+                ? 'Harian (Hari ini)'
+                : 'Harian ('.$this->dailyRangeStart()->locale('id')->translatedFormat('d M Y').')',
+            'week' => 'Mingguan ('.$this->weeklyRangeStart()->format('d M').' s.d. '.$this->weeklyRangeStart()->copy()->endOfWeek()->format('d M Y').')',
+            default => 'Bulanan ('.$this->monthlyRangeStart()->locale('id')->translatedFormat('F Y').')',
+        };
+    }
+
+    public function getSelectedPeriodIncomeProperty(): float
+    {
+        [$start, $end] = $this->periodRange($this->period);
+
+        return (float) Transaction::query()
+            ->where('status', Transaction::STATUS_LOCKED)
+            ->whereBetween('transaction_date', [
+                $start->toDateString(),
+                $end->toDateString(),
+            ])
+            ->sum('total_income');
+    }
+
+    public function getSelectedPeriodIncomeLabelProperty(): string
+    {
+        [$start, $end] = $this->periodRange($this->period);
+
+        return match ($this->period) {
+            'day' => $start->isToday()
+                ? 'Pendapatan Kotor Hari Ini'
+                : 'Pendapatan Kotor '.$start->locale('id')->translatedFormat('d M Y'),
+            'week' => 'Pendapatan Kotor '.$start->format('d M').' s.d. '.$end->format('d M Y'),
+            default => 'Pendapatan Kotor '.$start->locale('id')->translatedFormat('F Y'),
         };
     }
 
@@ -111,12 +263,17 @@ class MyCommissionPage extends Page
      */
     public function getCommissionHistoryRowsProperty(): Collection
     {
+        if ($this->selectedUserId === null) {
+            return collect();
+        }
+
         $buckets = collect($this->historyBuckets($this->period));
         $oldestStart = $buckets->last()['start'];
         $newestEnd = $buckets->first()['end'];
 
         $commissions = TransactionCommission::query()
             ->with('transaction:id,transaction_date,status')
+            ->where('user_id', $this->selectedUserId)
             ->whereHas('transaction', fn ($query) => $query
                 ->where('status', Transaction::STATUS_LOCKED)
                 ->whereBetween('transaction_date', [
@@ -124,16 +281,7 @@ class MyCommissionPage extends Page
                     $newestEnd->toDateString(),
                 ]))
             ->get();
-        $userIds = User::query()
-            ->where('commission_percent', '>', 0)
-            ->pluck('id')
-            ->merge($commissions->pluck('user_id'))
-            ->unique()
-            ->values();
-
-        if ($userIds->isEmpty()) {
-            return collect();
-        }
+        $userIds = collect([$this->selectedUserId]);
 
         $users = User::query()
             ->whereIn('id', $userIds)
@@ -177,10 +325,40 @@ class MyCommissionPage extends Page
     private function periodRange(string $period): array
     {
         return match ($period) {
-            'day' => [now()->startOfDay(), now()->endOfDay()],
-            'week' => [now()->startOfWeek(), now()->endOfWeek()],
-            default => [now()->startOfMonth(), now()->endOfMonth()],
+            'day' => [$this->dailyRangeStart(), $this->dailyRangeStart()->copy()->endOfDay()],
+            'week' => [$this->weeklyRangeStart(), $this->weeklyRangeStart()->copy()->endOfWeek()],
+            default => [$this->monthlyRangeStart(), $this->monthlyRangeStart()->copy()->endOfMonth()],
         };
+    }
+
+    private function dailyRangeStart(): Carbon
+    {
+        $allowedDates = collect($this->getRecentDailyDatesProperty())->pluck('date');
+        $date = $allowedDates->contains($this->dailyDate)
+            ? $this->dailyDate
+            : now()->toDateString();
+
+        return Carbon::parse($date)->startOfDay();
+    }
+
+    private function weeklyRangeStart(): Carbon
+    {
+        $allowedDates = collect($this->getRecentWeeklyPeriodsProperty())->pluck('date');
+        $date = $allowedDates->contains($this->weeklyStartDate)
+            ? $this->weeklyStartDate
+            : now()->startOfWeek()->toDateString();
+
+        return Carbon::parse($date)->startOfWeek();
+    }
+
+    private function monthlyRangeStart(): Carbon
+    {
+        $allowedMonths = collect($this->getRecentMonthlyPeriodsProperty())->pluck('key');
+        $month = $allowedMonths->contains($this->monthlyStart)
+            ? $this->monthlyStart
+            : now()->format('Y-m');
+
+        return Carbon::createFromFormat('Y-m', $month)->startOfMonth();
     }
 
     private function commissionTotalBetween(Carbon $start, Carbon $end): float
@@ -205,7 +383,7 @@ class MyCommissionPage extends Page
 
                     return [
                         'key' => $start->toDateString(),
-                        'label' => $start->translatedFormat('l, d M Y'),
+                        'label' => $start->locale('id')->translatedFormat('l, d M Y'),
                         'start' => $start,
                         'end' => $start->copy()->endOfDay(),
                     ];
@@ -218,7 +396,7 @@ class MyCommissionPage extends Page
 
                     return [
                         'key' => $start->toDateString(),
-                        'label' => $start->format('d M') . ' – ' . $end->format('d M Y'),
+                        'label' => $start->format('d M').' – '.$end->format('d M Y'),
                         'start' => $start,
                         'end' => $end,
                     ];
@@ -241,6 +419,6 @@ class MyCommissionPage extends Page
 
     private function formatPercent(string|float|int $percent): string
     {
-        return rtrim(rtrim(number_format((float) $percent, 2, '.', ''), '0'), '.') . '%';
+        return rtrim(rtrim(number_format((float) $percent, 2, '.', ''), '0'), '.').'%';
     }
 }

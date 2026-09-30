@@ -13,7 +13,7 @@ class MonthlyProfitChart extends ChartWidget
 
     protected static bool $isLazy = false;
 
-    protected ?string $heading = 'Monthly Profit This Year';
+    protected ?string $heading = 'Pendapatan & Profit Bulanan';
 
     protected ?string $pollingInterval = null;
 
@@ -24,14 +24,14 @@ class MonthlyProfitChart extends ChartWidget
         return [
             'datasets' => [
                 [
-                    'label' => 'Gross profit',
-                    'data' => $this->getMonthlyGrossProfitTotals(),
+                    'label' => 'Pendapatan Kotor',
+                    'data' => $this->getMonthlyIncomeTotals(),
                     'backgroundColor' => 'rgba(245, 158, 11, 0.12)',
                     'borderColor' => '#f59e0b',
                 ],
                 [
-                    'label' => 'Profit bersih',
-                    'data' => $this->getMonthlyNetProfitTotals(),
+                    'label' => 'Profit',
+                    'data' => $this->getMonthlyProfitTotals(),
                     'backgroundColor' => 'rgba(16, 185, 129, 0.2)',
                     'borderColor' => '#10b981',
                 ],

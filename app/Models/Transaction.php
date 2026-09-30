@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\TransactionCommission;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -23,6 +21,7 @@ class Transaction extends Model
         'vehicle_name',
         'service_description',
         'service_fee',
+        'payment_method',
     ];
 
     protected function casts(): array
@@ -58,7 +57,9 @@ class Transaction extends Model
 
             $transaction->total_item_cost = $itemCost;
             $transaction->total_income = (float) ($transaction->service_fee ?? 0) + $serviceIncome;
-            $transaction->gross_profit = $transaction->total_income - $transaction->total_item_cost;
+            $transaction->gross_profit = $transaction->total_income
+                - $transaction->total_item_cost
+                - (float) ($transaction->exists ? $transaction->commissions()->sum('amount') : 0);
         });
 
         static::saved(function (Transaction $transaction): void {
@@ -91,7 +92,6 @@ class Transaction extends Model
         $this->total_item_cost = (float) (clone $items)->whereNull('price_list_id')->sum('subtotal');
         $this->total_income = (float) ($this->service_fee ?? 0)
             + (float) (clone $items)->whereNotNull('price_list_id')->sum('subtotal');
-        $this->gross_profit = $this->total_income - $this->total_item_cost;
         $this->saveQuietly();
 
         $this->syncDraftCommissionSnapshots();
@@ -111,14 +111,15 @@ class Transaction extends Model
      * Finalize the current totals and commission snapshots as immutable
      * transaction history.
      */
-    public function lock(): void
+    public function lock(array $customPercents = []): void
     {
         if ($this->isLocked()) {
             return;
         }
 
-        DB::transaction(function (): void {
+        DB::transaction(function () use ($customPercents): void {
             $this->refresh();
+            $this->applyCustomCommissionPercents($customPercents);
             $this->recalculateTotals();
             $this->syncDraftCommissionSnapshots();
             $this->status = self::STATUS_LOCKED;
@@ -155,16 +156,18 @@ class Transaction extends Model
             return;
         }
 
-        DB::transaction(function (): void {
+        DB::transaction(function () use ($participantIds): void {
             $selectedIds = collect($participantIds)
                 ->filter(fn (mixed $id): bool => filled($id))
                 ->map(fn (mixed $id): int => (int) $id)
                 ->unique()
                 ->values();
+            $customUserIds = $this->commissions()->whereNotNull('custom_percent')->pluck('user_id');
             $eligibleUsers = User::query()
                 ->whereIn('id', $selectedIds)
-                ->where('commission_active', true)
-                ->where('commission_percent', '>', 0)
+                ->where(fn (Builder $query) => $query
+                    ->where('commission_percent', '>', 0)
+                    ->orWhereIn('id', $customUserIds))
                 ->get();
             $finalIds = $eligibleUsers->pluck('id');
             $existingIds = $this->participants()->pluck('users.id');
@@ -183,7 +186,7 @@ class Transaction extends Model
 
     /**
      * Keep draft commissions aligned with the transaction's latest gross
-     * billing amount and each participant's active commission configuration.
+     * billing amount and each participant's latest commission percentage.
      */
     public function syncDraftCommissionSnapshots(): void
     {
@@ -194,14 +197,14 @@ class Transaction extends Model
         $participantIds = $this->participants()->pluck('users.id');
 
         if ($participantIds->isEmpty()) {
+            $this->refreshProfitAfterCommission();
+
             return;
         }
 
-        $eligibleUsers = User::query()
-            ->whereIn('id', $participantIds)
-            ->where('commission_active', true)
-            ->where('commission_percent', '>', 0)
-            ->get();
+        $existingCommissions = $this->commissions()->get()->keyBy('user_id');
+        $eligibleUsers = User::query()->whereIn('id', $participantIds)->get()
+            ->filter(fn (User $user): bool => $existingCommissions->get($user->id)?->custom_percent !== null || (float) $user->commission_percent > 0);
         $eligibleIds = $eligibleUsers->pluck('id');
         $ineligibleIds = $participantIds->diff($eligibleIds);
 
@@ -211,26 +214,52 @@ class Transaction extends Model
         }
 
         foreach ($eligibleUsers as $user) {
+            $customPercent = $existingCommissions->get($user->id)?->custom_percent;
+            $percent = $customPercent ?? $user->commission_percent;
             $this->commissions()->updateOrCreate([
                 'user_id' => $user->id,
             ], [
-                'percent' => $user->commission_percent,
-                'amount' => round((float) $this->total_income * (float) $user->commission_percent / 100, 2),
+                'custom_percent' => $customPercent,
+                'percent' => $percent,
+                'amount' => round((float) $this->total_income * (float) $percent / 100, 2),
             ]);
+        }
+
+        $this->refreshProfitAfterCommission();
+    }
+
+    /** @param array<int, int|float|string|null> $customPercents */
+    public function applyCustomCommissionPercents(array $customPercents): void
+    {
+        foreach ($customPercents as $userId => $percent) {
+            if (! $this->participants()->whereKey($userId)->exists()) {
+                continue;
+            }
+            $value = filled($percent) ? max(0, min(100, (float) $percent)) : null;
+            $this->commissions()->updateOrCreate(['user_id' => $userId], ['custom_percent' => $value]);
         }
     }
 
-    public static function generateTransactionNumber(Carbon | string $date): string
+    private function refreshProfitAfterCommission(): void
+    {
+        $this->gross_profit = (float) $this->total_income
+            - (float) $this->total_item_cost
+            - (float) $this->commissions()->sum('amount');
+
+        $this->saveQuietly();
+    }
+
+    public static function generateTransactionNumber(Carbon|string $date): string
     {
         $date = Carbon::parse($date);
-        $prefix = 'TRX-' . $date->format('Ymd');
+        $prefix = 'TRX-'.$date->format('Ymd');
         $sequence = static::query()
             ->whereDate('transaction_date', $date)
             ->where('transaction_number', 'like', "{$prefix}-%")
             ->count() + 1;
 
         do {
-            $number = "{$prefix}-" . str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
+            $number = "{$prefix}-".str_pad((string) $sequence, 4, '0', STR_PAD_LEFT);
             $sequence++;
         } while (static::query()->where('transaction_number', $number)->exists());
 

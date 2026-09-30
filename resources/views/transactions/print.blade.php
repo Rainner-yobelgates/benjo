@@ -194,6 +194,7 @@
                 <div class="meta">
                     <p><strong>No. Transaksi:</strong> {{ $transaction->transaction_number }}</p>
                     <p><strong>Tanggal:</strong> {{ $transaction->transaction_date?->format('d M Y') }}</p>
+                    <p><strong>Metode Pembayaran:</strong> {{ $transaction->payment_method === 'qris' ? 'QRIS' : 'Cash' }}</p>
                 </div>
             </div>
 
@@ -257,22 +258,24 @@
                 </div>
             @endif
 
-            <div class="summary">
-                @if ($layananItems->isNotEmpty())
+            @if ($canViewFinancial)
+                <div class="summary">
+                    @if ($layananItems->isNotEmpty())
+                        <div class="summary-row">
+                            <span>Total Layanan Daftar Harga</span>
+                            <span>{{ Money::rupiah($layananItems->sum('subtotal')) }}</span>
+                        </div>
+                    @endif
                     <div class="summary-row">
-                        <span>Total Layanan Daftar Harga</span>
-                        <span>{{ Money::rupiah($layananItems->sum('subtotal')) }}</span>
+                        <span>Biaya Servis</span>
+                        <span>{{ Money::rupiah($transaction->service_fee) }}</span>
                     </div>
-                @endif
-                <div class="summary-row">
-                    <span>Biaya Servis</span>
-                    <span>{{ Money::rupiah($transaction->service_fee) }}</span>
+                    <div class="summary-row total">
+                        <span>Total Pembayaran Customer</span>
+                        <span>{{ Money::rupiah($transaction->total_income) }}</span>
+                    </div>
                 </div>
-                <div class="summary-row total">
-                    <span>Total Pembayaran Customer</span>
-                    <span>{{ Money::rupiah($transaction->total_income) }}</span>
-                </div>
-            </div>
+            @endif
 
             <p class="footer-note">
                 Dokumen ini dicetak dari sistem administrasi bengkel.

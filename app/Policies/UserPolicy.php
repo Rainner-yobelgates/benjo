@@ -42,6 +42,6 @@ class UserPolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $user->can(Access::USERS_DELETE_ANY);
+        return $user->can(Access::USERS_DELETE);
     }
 }

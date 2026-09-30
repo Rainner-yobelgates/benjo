@@ -4,6 +4,7 @@ namespace App\Filament\Widgets\Concerns;
 
 use App\Models\Cashout;
 use App\Models\Transaction;
+use App\Models\TransactionCommission;
 
 trait HasYearlyDashboardData
 {
@@ -28,6 +29,7 @@ trait HasYearlyDashboardData
         $buckets = array_fill(1, 12, 0);
 
         Transaction::query()
+            ->where('status', Transaction::STATUS_LOCKED)
             ->whereYear('transaction_date', $this->getSelectedYear())
             ->get(['transaction_date'])
             ->each(function (Transaction $transaction) use (&$buckets): void {
@@ -40,18 +42,50 @@ trait HasYearlyDashboardData
     /**
      * @return array<int, float>
      */
-    protected function getMonthlyGrossProfitTotals(): array
+    protected function getMonthlyIncomeTotals(): array
     {
         $buckets = array_fill(1, 12, 0.0);
 
         Transaction::query()
+            ->where('status', Transaction::STATUS_LOCKED)
             ->whereYear('transaction_date', $this->getSelectedYear())
-            ->get(['transaction_date', 'gross_profit'])
+            ->get(['transaction_date', 'total_income'])
             ->each(function (Transaction $transaction) use (&$buckets): void {
-                $buckets[$transaction->transaction_date->month] += (float) $transaction->gross_profit;
+                $buckets[$transaction->transaction_date->month] += (float) $transaction->total_income;
             });
 
         return array_values($buckets);
+    }
+
+    /**
+     * Profit setelah dikurangi modal barang, komisi peserta terkunci, dan
+     * cashout pada bulan yang sama.
+     *
+     * @return array<int, float>
+     */
+    protected function getMonthlyProfitTotals(): array
+    {
+        $buckets = array_fill(1, 12, 0.0);
+
+        Transaction::query()
+            ->where('status', Transaction::STATUS_LOCKED)
+            ->whereYear('transaction_date', $this->getSelectedYear())
+            ->with('commissions:id,transaction_id,amount')
+            ->get(['id', 'transaction_date', 'total_income', 'total_item_cost', 'status'])
+            ->each(function (Transaction $transaction) use (&$buckets): void {
+                $commission = (float) $transaction->commissions->sum('amount');
+                $profit = (float) $transaction->total_income
+                    - (float) $transaction->total_item_cost
+                    - $commission;
+
+                $buckets[$transaction->transaction_date->month] += $profit;
+            });
+
+        $cashouts = $this->getMonthlyCashoutTotals();
+
+        return collect(array_values($buckets))
+            ->map(fn (float $amount, int $index): float => $amount - $cashouts[$index])
+            ->all();
     }
 
     /**
@@ -74,13 +108,20 @@ trait HasYearlyDashboardData
     /**
      * @return array<int, float>
      */
-    protected function getMonthlyNetProfitTotals(): array
+    protected function getMonthlyLockedCommissionTotals(): array
     {
-        $grossProfit = $this->getMonthlyGrossProfitTotals();
-        $cashouts = $this->getMonthlyCashoutTotals();
+        $buckets = array_fill(1, 12, 0.0);
 
-        return collect($grossProfit)
-            ->map(fn (float $amount, int $index): float => $amount - $cashouts[$index])
-            ->all();
+        TransactionCommission::query()
+            ->with('transaction:id,transaction_date')
+            ->whereHas('transaction', fn ($query) => $query
+                ->where('status', Transaction::STATUS_LOCKED)
+                ->whereYear('transaction_date', $this->getSelectedYear()))
+            ->get(['transaction_id', 'amount'])
+            ->each(function (TransactionCommission $commission) use (&$buckets): void {
+                $buckets[$commission->transaction->transaction_date->month] += (float) $commission->amount;
+            });
+
+        return array_values($buckets);
     }
 }

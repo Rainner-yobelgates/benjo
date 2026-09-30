@@ -49,7 +49,7 @@ class Dashboard extends BaseDashboard
             ]);
     }
 
-    public function getColumns(): int | array
+    public function getColumns(): int|array
     {
         return [
             'md' => 2,
@@ -86,7 +86,9 @@ class Dashboard extends BaseDashboard
         $currentYear = now()->year;
 
         $years = collect([
-            Transaction::query()->min('transaction_date'),
+            Transaction::query()
+                ->where('status', Transaction::STATUS_LOCKED)
+                ->min('transaction_date'),
             Cashout::query()->min('cashout_date'),
         ])
             ->filter()

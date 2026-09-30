@@ -35,6 +35,6 @@ class CashoutPolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $this->can($user, Access::CASHOUTS_DELETE_ANY);
+        return $this->can($user, Access::CASHOUTS_DELETE);
     }
 }

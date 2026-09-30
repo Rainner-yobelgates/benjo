@@ -39,16 +39,19 @@ class TransactionCommissionParticipantsTest extends TestCase
         $this->assertCount(0, $transaction->commissions()->get());
     }
 
-    public function test_inactive_or_zero_percent_users_cannot_be_added_as_new_participants(): void
+    public function test_selected_users_with_a_positive_percentage_receive_commission(): void
     {
         $transaction = $this->makeTransaction(100_000);
-        $inactiveUser = $this->makeCommissionUser(15, false);
+        $commissionUser = $this->makeCommissionUser(15);
         $zeroPercentUser = $this->makeCommissionUser(0);
 
-        $transaction->syncCommissionParticipants([$inactiveUser->id, $zeroPercentUser->id]);
+        $transaction->syncCommissionParticipants([$commissionUser->id, $zeroPercentUser->id]);
 
-        $this->assertCount(0, $transaction->participants()->get());
-        $this->assertCount(0, $transaction->commissions()->get());
+        $this->assertSame([$commissionUser->id], $transaction->participants()->pluck('users.id')->all());
+        $this->assertSame([15_000.0], $transaction->commissions()
+            ->pluck('amount')
+            ->map(fn (string $amount): float => (float) $amount)
+            ->all());
     }
 
     public function test_draft_commission_follows_the_latest_total_and_user_configuration(): void
@@ -99,11 +102,10 @@ class TransactionCommissionParticipantsTest extends TestCase
         ]);
     }
 
-    private function makeCommissionUser(float $percent, bool $active = true): User
+    private function makeCommissionUser(float $percent): User
     {
         return User::factory()->create([
             'commission_percent' => $percent,
-            'commission_active' => $active,
         ]);
     }
 }

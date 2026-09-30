@@ -29,16 +29,22 @@ class TransactionPolicy extends BasePolicy
             && $this->can($user, Access::TRANSACTIONS_UPDATE);
     }
 
+    public function viewFinancial(User $user, Transaction $transaction): bool
+    {
+        return $this->can($user, Access::TRANSACTIONS_VIEW_FINANCIAL);
+    }
+
     public function lock(User $user, Transaction $transaction): bool
     {
         return $transaction->isDraft()
-            && $this->can($user, Access::TRANSACTIONS_UPDATE);
+            && $this->can($user, Access::TRANSACTIONS_UPDATE)
+            && $this->can($user, Access::TRANSACTIONS_LOCK);
     }
 
     public function unlock(User $user, Transaction $transaction): bool
     {
         return $transaction->isLocked()
-            && $this->can($user, Access::TRANSACTIONS_UNLOCK);
+            && $this->can($user, Access::TRANSACTIONS_LOCK);
     }
 
     public function delete(User $user, Transaction $transaction): bool
@@ -49,6 +55,6 @@ class TransactionPolicy extends BasePolicy
 
     public function deleteAny(User $user): bool
     {
-        return $this->can($user, Access::TRANSACTIONS_DELETE_ANY);
+        return $this->can($user, Access::TRANSACTIONS_DELETE);
     }
 }

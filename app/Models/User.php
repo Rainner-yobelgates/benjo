@@ -9,18 +9,18 @@ use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-#[Fillable(['name', 'password', 'commission_percent', 'commission_active'])]
+#[Fillable(['name', 'password', 'commission_percent'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasRoles;
+    use HasFactory, HasRoles, Notifiable;
 
     public function canAccessPanel(Panel $panel): bool
     {
@@ -36,15 +36,6 @@ class User extends Authenticatable implements FilamentUser
     public function isMaster(): bool
     {
         return $this->hasRole(Access::MASTER_ROLE);
-    }
-
-    /**
-     * Whether this user currently receives commission on transactions.
-     */
-    public function hasActiveCommission(): bool
-    {
-        return (bool) ($this->commission_active ?? false)
-            && (float) ($this->commission_percent ?? 0) > 0;
     }
 
     public function commissions(): HasMany
@@ -68,7 +59,6 @@ class User extends Authenticatable implements FilamentUser
         return [
             'password' => 'hashed',
             'commission_percent' => 'decimal:2',
-            'commission_active' => 'boolean',
         ];
     }
 }
