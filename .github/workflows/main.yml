@@ -7,8 +7,8 @@ on:
       - staging
 
 env:
-  REGISTRY: docker.artodigital.id
-  IMAGE: docker.artodigital.id/benjo
+  REGISTRY: docker.regen.my.id
+  IMAGE: docker.regen.my.id/benjo
 
 jobs:
   build-and-push:
