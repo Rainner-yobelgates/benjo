@@ -11,8 +11,19 @@ RUN composer install \
     --optimize-autoloader \
     --ignore-platform-reqs
 
+# ─── Stage 2: Node – build Vite assets ──────────────────────────────────────
+# Needs vendor/ present: the Filament theme CSS imports
+# vendor/filament/filament/resources/css/theme.css at build time.
+FROM node:22-alpine AS assets
+WORKDIR /app
 
-# ─── Stage 2: Final FrankenPHP image ─────────────────────────────────────────
+COPY package.json package-lock.json ./
+RUN npm ci --no-audit --prefer-offline
+COPY . .
+COPY --from=vendor /app/vendor ./vendor
+RUN npm run build
+
+# ─── Stage 3: Final FrankenPHP image ─────────────────────────────────────────
 FROM ronaregen/php:frankenphp-latest AS app
 
 # Lets the entrypoint drop from root to www-data after fixing permissions on
@@ -25,6 +36,7 @@ COPY docker/php/php.ini /usr/local/etc/php/conf.d/app.ini
 WORKDIR /app
 
 COPY --chown=www-data:www-data . .
+COPY --from=assets  --chown=www-data:www-data /app/public/build ./public/build
 COPY --from=vendor  --chown=www-data:www-data /app/vendor       ./vendor
 
 # composer.json's post-autoload-dump (package:discover + filament:upgrade)
