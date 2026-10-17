@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\RoleResource\Pages;
 
 use App\Filament\Resources\RoleResource;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateRole extends CreateRecord
@@ -34,9 +35,10 @@ class CreateRole extends CreateRecord
     protected function getHeaderActions(): array
     {
         return [
-            \Filament\Actions\BackAction::make()
+            Action::make('back')
                 ->label('Kembali')
-                ->icon('heroicon-o-arrow-left'),
+                ->icon('heroicon-o-arrow-left')
+                ->url(RoleResource::getUrl('index')),
         ];
     }
 }
