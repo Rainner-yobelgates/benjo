@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Transaction;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
 use App\Support\Access;
@@ -36,11 +37,15 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Permission::class, PermissionPolicy::class);
 
-        // Full access must never allow deletion of the master role.
+        // Full access still respects protected records and transaction locks.
         Gate::before(function ($user, string $ability, array $arguments) {
             $record = $arguments[0] ?? null;
             if ($ability === 'delete' && $record instanceof Role && $record->name === Access::MASTER_ROLE) {
                 return false;
+            }
+
+            if ($record instanceof Transaction && in_array($ability, ['update', 'delete'], true)) {
+                return null;
             }
 
             return $user->isMaster() ? true : null;
