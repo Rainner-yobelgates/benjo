@@ -2,10 +2,12 @@
 
 namespace App\Providers;
 
+use App\Filament\Auth\LoginResponse;
 use App\Models\Transaction;
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
 use App\Support\Access;
+use Filament\Auth\Http\Responses\Contracts\LoginResponse as LoginResponseContract;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -19,7 +21,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(LoginResponseContract::class, LoginResponse::class);
     }
 
     /**
