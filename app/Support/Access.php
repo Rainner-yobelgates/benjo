@@ -17,7 +17,7 @@ class Access
 
     public const DASHBOARD_VIEW = 'dashboard.view';
 
-    public const TRANSACTIONS_VIEW_ANY = 'transactions.view_any';
+    public const TRANSACTIONS_VIEW_ANY = self::TRANSACTIONS_VIEW;
 
     public const TRANSACTIONS_VIEW = 'transactions.view';
 
@@ -31,7 +31,7 @@ class Access
 
     public const TRANSACTIONS_DELETE = 'transactions.delete';
 
-    public const ITEMS_VIEW_ANY = 'items.view_any';
+    public const ITEMS_VIEW_ANY = self::ITEMS_VIEW;
 
     public const ITEMS_VIEW = 'items.view';
 
@@ -41,7 +41,7 @@ class Access
 
     public const ITEMS_DELETE = 'items.delete';
 
-    public const PRICE_LISTS_VIEW_ANY = 'price_lists.view_any';
+    public const PRICE_LISTS_VIEW_ANY = self::PRICE_LISTS_VIEW;
 
     public const PRICE_LISTS_VIEW = 'price_lists.view';
 
@@ -51,7 +51,7 @@ class Access
 
     public const PRICE_LISTS_DELETE = 'price_lists.delete';
 
-    public const CASHOUTS_VIEW_ANY = 'cashouts.view_any';
+    public const CASHOUTS_VIEW_ANY = self::CASHOUTS_VIEW;
 
     public const CASHOUTS_VIEW = 'cashouts.view';
 
@@ -61,11 +61,11 @@ class Access
 
     public const CASHOUTS_DELETE = 'cashouts.delete';
 
-    public const SETTINGS_VIEW_ANY = 'settings.view_any';
+    public const SETTINGS_VIEW_ANY = 'settings.view';
 
     public const SETTINGS_UPDATE = 'settings.update';
 
-    public const USERS_VIEW_ANY = 'users.view_any';
+    public const USERS_VIEW_ANY = self::USERS_VIEW;
 
     public const USERS_VIEW = 'users.view';
 
@@ -75,7 +75,7 @@ class Access
 
     public const USERS_DELETE = 'users.delete';
 
-    public const ROLES_VIEW_ANY = 'roles.view_any';
+    public const ROLES_VIEW_ANY = self::ROLES_VIEW;
 
     public const ROLES_VIEW = 'roles.view';
 
@@ -85,7 +85,7 @@ class Access
 
     public const ROLES_DELETE = 'roles.delete';
 
-    public const PERMISSIONS_VIEW_ANY = 'permissions.view_any';
+    public const PERMISSIONS_VIEW_ANY = 'permissions.view';
 
     /**
      * Human-readable action labels for the permission matrix UI.
@@ -94,7 +94,6 @@ class Access
      */
     private const ACTION_LABELS = [
         'view' => 'Lihat',
-        'view_any' => 'Lihat Semua',
         'create' => 'Tambah',
         'update' => 'Ubah',
         'view_financial' => 'Ringkasan Keuangan',
@@ -152,7 +151,6 @@ class Access
      */
     private const ACTION_ORDER = [
         'view' => 10,
-        'view_any' => 20,
         'create' => 30,
         'update' => 40,
         'view_financial' => 42,
@@ -180,7 +178,6 @@ class Access
         return [
             Access::DASHBOARD_VIEW,
 
-            Access::TRANSACTIONS_VIEW_ANY,
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
             Access::TRANSACTIONS_UPDATE,
@@ -188,19 +185,16 @@ class Access
             Access::TRANSACTIONS_LOCK,
             Access::TRANSACTIONS_DELETE,
 
-            Access::ITEMS_VIEW_ANY,
             Access::ITEMS_VIEW,
             Access::ITEMS_CREATE,
             Access::ITEMS_UPDATE,
             Access::ITEMS_DELETE,
 
-            Access::PRICE_LISTS_VIEW_ANY,
             Access::PRICE_LISTS_VIEW,
             Access::PRICE_LISTS_CREATE,
             Access::PRICE_LISTS_UPDATE,
             Access::PRICE_LISTS_DELETE,
 
-            Access::CASHOUTS_VIEW_ANY,
             Access::CASHOUTS_VIEW,
             Access::CASHOUTS_CREATE,
             Access::CASHOUTS_UPDATE,
@@ -209,13 +203,11 @@ class Access
             Access::SETTINGS_VIEW_ANY,
             Access::SETTINGS_UPDATE,
 
-            Access::USERS_VIEW_ANY,
             Access::USERS_VIEW,
             Access::USERS_CREATE,
             Access::USERS_UPDATE,
             Access::USERS_DELETE,
 
-            Access::ROLES_VIEW_ANY,
             Access::ROLES_VIEW,
             Access::ROLES_CREATE,
             Access::ROLES_UPDATE,

@@ -94,7 +94,7 @@ class RoleResource extends Resource
                         })
                         ->afterStateUpdated(function (Set $set, bool $state) use ($moduleKey, $actions): void {
                             foreach ($actions as $action) {
-                                $set("permission_matrix.{$moduleKey}.{$action}", $state, isAbsolute: true);
+                                $set("permission_matrix.{$moduleKey}.{$action}", $state);
                             }
                         })
                         ->onColor('success')
@@ -111,7 +111,6 @@ class RoleResource extends Resource
                                     $set(
                                         "permission_matrix.{$moduleKey}.all",
                                         self::activePermissionCount($get, $moduleKey, $actions) === count($actions),
-                                        isAbsolute: true,
                                     );
                                 })
                                 ->onColor('success');
@@ -205,7 +204,7 @@ class RoleResource extends Resource
         return count(array_filter(
             $actions,
             function (string $action) use ($get, $moduleKey, $record): bool {
-                $state = $get("permission_matrix.{$moduleKey}.{$action}", isAbsolute: true);
+                $state = $get("permission_matrix.{$moduleKey}.{$action}");
 
                 return $state === null
                     ? self::roleHasPermission($record, "{$moduleKey}.{$action}")

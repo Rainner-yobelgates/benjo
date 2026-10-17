@@ -27,7 +27,7 @@ class PermissionMatrixTest extends TestCase
         $this->assertIsArray($grouped['dashboard']['actions']);
         $this->assertArrayHasKey('view', $grouped['dashboard']['actions']);
 
-        $this->assertGreaterThan(30, count(Access::all()));
+        $this->assertGreaterThan(20, count(Access::all()));
         $this->assertEquals(9, count($grouped)); // 9 modules
     }
 
@@ -49,7 +49,7 @@ class PermissionMatrixTest extends TestCase
         $grouped = Access::allGrouped();
         $txActions = $grouped['transactions']['actions'];
 
-        $this->assertEquals('Lihat Semua', $txActions['view_any']);
+        $this->assertArrayNotHasKey('view_any', $txActions);
         $this->assertEquals('Lihat', $txActions['view']);
         $this->assertEquals('Tambah', $txActions['create']);
         $this->assertEquals('Ubah', $txActions['update']);
@@ -73,12 +73,11 @@ class PermissionMatrixTest extends TestCase
         $txActions = array_keys($grouped['transactions']['actions']);
 
         $this->assertEquals('view', $txActions[0]);
-        $this->assertEquals('view_any', $txActions[1]);
-        $this->assertEquals('create', $txActions[2]);
-        $this->assertEquals('update', $txActions[3]);
-        $this->assertEquals('view_financial', $txActions[4]);
-        $this->assertEquals('unlock', $txActions[5]);
-        $this->assertEquals('delete', $txActions[6]);
+        $this->assertEquals('create', $txActions[1]);
+        $this->assertEquals('update', $txActions[2]);
+        $this->assertEquals('view_financial', $txActions[3]);
+        $this->assertEquals('lock', $txActions[4]);
+        $this->assertEquals('delete', $txActions[5]);
     }
 
     public function test_unknown_module_gets_auto_label(): void
@@ -96,6 +95,6 @@ class PermissionMatrixTest extends TestCase
     public function test_static_all_returns_all_permutations(): void
     {
         $all = Access::all();
-        $this->assertGreaterThan(30, count($all));
+        $this->assertGreaterThan(20, count($all));
     }
 }

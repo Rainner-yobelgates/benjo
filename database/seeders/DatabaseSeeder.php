@@ -38,24 +38,20 @@ class DatabaseSeeder extends Seeder
         static::syncRolePermissions('admin', [
             Access::DASHBOARD_VIEW,
 
-            Access::TRANSACTIONS_VIEW_ANY,
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
             Access::TRANSACTIONS_UPDATE,
             Access::TRANSACTIONS_VIEW_FINANCIAL,
             Access::TRANSACTIONS_LOCK,
 
-            Access::ITEMS_VIEW_ANY,
             Access::ITEMS_VIEW,
             Access::ITEMS_CREATE,
             Access::ITEMS_UPDATE,
 
-            Access::PRICE_LISTS_VIEW_ANY,
             Access::PRICE_LISTS_VIEW,
             Access::PRICE_LISTS_CREATE,
             Access::PRICE_LISTS_UPDATE,
 
-            Access::CASHOUTS_VIEW_ANY,
             Access::CASHOUTS_VIEW,
             Access::CASHOUTS_CREATE,
             Access::CASHOUTS_UPDATE,
@@ -66,7 +62,6 @@ class DatabaseSeeder extends Seeder
 
         static::syncRolePermissions('kasir', [
             Access::DASHBOARD_VIEW,
-            Access::TRANSACTIONS_VIEW_ANY,
             Access::TRANSACTIONS_VIEW,
             Access::TRANSACTIONS_CREATE,
         ]);

@@ -33,19 +33,17 @@ class RolePermissionMatrixTest extends TestCase
             'permission_matrix' => [
                 'transactions' => [
                     'all' => true,
-                    'view_any' => true,
                     'view' => true,
                     'create' => false,
                 ],
                 'settings' => [
-                    'view_any' => true,
+                    'view' => true,
                     'update' => false,
                 ],
             ],
         ]);
 
         $this->assertSame([
-            Access::TRANSACTIONS_VIEW_ANY,
             Access::TRANSACTIONS_VIEW,
             Access::SETTINGS_VIEW_ANY,
         ], $selected);
