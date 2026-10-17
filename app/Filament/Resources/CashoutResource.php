@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Forms\Components\RupiahInput;
 use App\Filament\Resources\CashoutResource\Pages;
 use App\Models\Cashout;
 use App\Support\Money;
@@ -45,11 +46,8 @@ class CashoutResource extends Resource
                             ->label('Judul')
                             ->required()
                             ->maxLength(255),
-                        TextInput::make('amount')
+                        RupiahInput::make('amount')
                             ->label('Jumlah')
-                            ->prefix('Rp')
-                            ->numeric()
-                            ->minValue(0)
                             ->required(),
                         Textarea::make('description')
                             ->label('Deskripsi')

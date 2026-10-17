@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Forms\Components\RupiahInput;
 use App\Filament\Resources\TransactionResource\Pages;
 use App\Models\Item;
 use App\Models\PriceList;
@@ -195,12 +196,9 @@ class TransactionResource extends Resource
                                 );
                             })
                             ->columnSpanFull(),
-                        TextInput::make('service_fee')
+                        RupiahInput::make('service_fee')
                             ->label('Biaya Servis')
-                            ->numeric()
-                            ->minValue(0)
                             ->default(0)
-                            ->prefix('Rp')
                             ->live()
                             ->helperText('Nominal yang dibayarkan customer untuk jasa servis.')
                             ->required(),

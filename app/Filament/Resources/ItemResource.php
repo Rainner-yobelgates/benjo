@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Forms\Components\RupiahInput;
 use App\Filament\Resources\ItemResource\Pages;
 use App\Models\Item;
 use App\Support\Money;
@@ -40,11 +41,8 @@ class ItemResource extends Resource
                             ->label('Nama Barang')
                             ->required()
                             ->maxLength(255),
-                        TextInput::make('price')
+                        RupiahInput::make('price')
                             ->label('Harga')
-                            ->prefix('Rp')
-                            ->numeric()
-                            ->minValue(0)
                             ->required(),
                         Textarea::make('description')
                             ->label('Deskripsi')
