@@ -36,7 +36,9 @@ class RoleResource extends Resource
 
     public static function canDelete(Model $record): bool
     {
-        return $record instanceof Role && $record->name !== Access::MASTER_ROLE;
+        return $record instanceof Role
+            && $record->name !== Access::MASTER_ROLE
+            && parent::canDelete($record);
     }
 
     public static function form(Schema $schema): Schema

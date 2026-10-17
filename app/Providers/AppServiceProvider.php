@@ -4,9 +4,10 @@ namespace App\Providers;
 
 use App\Policies\PermissionPolicy;
 use App\Policies\RolePolicy;
-use Illuminate\Support\ServiceProvider;
+use App\Support\Access;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -35,8 +36,13 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Role::class, RolePolicy::class);
         Gate::policy(Permission::class, PermissionPolicy::class);
 
-        // Users holding the "master" role bypass every permission check.
-        Gate::before(function ($user) {
+        // Full access must never allow deletion of the master role.
+        Gate::before(function ($user, string $ability, array $arguments) {
+            $record = $arguments[0] ?? null;
+            if ($ability === 'delete' && $record instanceof Role && $record->name === Access::MASTER_ROLE) {
+                return false;
+            }
+
             return $user->isMaster() ? true : null;
         });
     }
